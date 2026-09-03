@@ -600,9 +600,12 @@ pub async fn run_mcp_verify_from_env() -> Result<(), String> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(600);
 
-    let server =
-        crate::local_agent::mcp_server::start_mcp_server(PathBuf::from(db), doc, env::var("LUMEN_VERIFY_WEB").is_ok())
-            .await?;
+    let server = crate::local_agent::mcp_server::start_mcp_server(
+        PathBuf::from(db),
+        doc,
+        env::var("LUMEN_VERIFY_WEB").is_ok(),
+    )
+    .await?;
     println!("MCP_URL={}", server.url);
     println!("MCP_TOKEN={}", server.token);
     println!("MCP_READY alive={secs}s");
@@ -610,11 +613,7 @@ pub async fn run_mcp_verify_from_env() -> Result<(), String> {
 
     tokio::time::sleep(Duration::from_secs(secs)).await;
 
-    let served = server
-        .citations
-        .lock()
-        .map(|c| c.len())
-        .unwrap_or(0);
+    let served = server.citations.lock().map(|c| c.len()).unwrap_or(0);
     println!("CITATIONS_SERVED={served}");
     Ok(())
 }
@@ -651,12 +650,8 @@ pub async fn run_agentic_probe_from_env() -> Result<(), String> {
     });
 
     let view_note = env::var("LUMEN_VERIFY_VIEW").ok();
-    let prompt = crate::local_agent::build_agentic_prompt(
-        &question,
-        "",
-        view_note.as_deref(),
-        Some("en"),
-    );
+    let prompt =
+        crate::local_agent::build_agentic_prompt(&question, "", view_note.as_deref(), Some("en"));
     let outcome = crate::local_agent::generate_answer_agentic(
         kind,
         PathBuf::from(db),

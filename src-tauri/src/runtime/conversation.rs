@@ -18,29 +18,119 @@
 /// interrogative-looking characters but are plainly chit-chat about the assistant.
 const SMALLTALK_PHRASES: &[&str] = &[
     // Chinese greetings / acknowledgements / farewells.
-    "你好", "您好", "你好呀", "你好啊", "哈喽", "嗨", "hi", "在吗", "在么", "在不在",
-    "早", "早安", "早上好", "中午好", "下午好", "晚上好", "晚安", "你好吗", "最近好吗",
-    "谢谢", "谢谢你", "多谢", "感谢", "感谢你", "辛苦了", "麻烦了", "好的", "好", "收到",
-    "嗯", "嗯嗯", "ok", "okay", "好嘞", "行", "可以", "没事了", "算了",
-    "再见", "拜拜", "回头见", "晚点聊",
+    "你好",
+    "您好",
+    "你好呀",
+    "你好啊",
+    "哈喽",
+    "嗨",
+    "hi",
+    "在吗",
+    "在么",
+    "在不在",
+    "早",
+    "早安",
+    "早上好",
+    "中午好",
+    "下午好",
+    "晚上好",
+    "晚安",
+    "你好吗",
+    "最近好吗",
+    "谢谢",
+    "谢谢你",
+    "多谢",
+    "感谢",
+    "感谢你",
+    "辛苦了",
+    "麻烦了",
+    "好的",
+    "好",
+    "收到",
+    "嗯",
+    "嗯嗯",
+    "ok",
+    "okay",
+    "好嘞",
+    "行",
+    "可以",
+    "没事了",
+    "算了",
+    "再见",
+    "拜拜",
+    "回头见",
+    "晚点聊",
     // Meta questions about the assistant itself (not the library).
-    "你是谁", "你叫什么", "你叫什么名字", "你是什么", "你能做什么", "你会什么",
-    "介绍一下你自己", "自我介绍", "你好厉害",
+    "你是谁",
+    "你叫什么",
+    "你叫什么名字",
+    "你是什么",
+    "你能做什么",
+    "你会什么",
+    "介绍一下你自己",
+    "自我介绍",
+    "你好厉害",
     // English.
-    "hello", "hey", "yo", "hiya", "heya", "howdy", "hi there", "hello there",
-    "thanks", "thank you", "thanks a lot", "thx", "ty", "cheers", "much appreciated",
-    "good morning", "good afternoon", "good evening", "good night", "goodnight",
-    "bye", "goodbye", "see you", "see ya", "later", "ok", "okay", "cool", "nice",
-    "who are you", "what are you", "what can you do", "introduce yourself",
+    "hello",
+    "hey",
+    "yo",
+    "hiya",
+    "heya",
+    "howdy",
+    "hi there",
+    "hello there",
+    "thanks",
+    "thank you",
+    "thanks a lot",
+    "thx",
+    "ty",
+    "cheers",
+    "much appreciated",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "good night",
+    "goodnight",
+    "bye",
+    "goodbye",
+    "see you",
+    "see ya",
+    "later",
+    "ok",
+    "okay",
+    "cool",
+    "nice",
+    "who are you",
+    "what are you",
+    "what can you do",
+    "introduce yourself",
 ];
 
 /// Greeting / thanks / farewell tokens. A message that STARTS WITH one of these and
 /// carries no real-question signal is treated as smalltalk even if not an exact
 /// phrase (e.g. "你好~~" after punctuation stripping, "thanks so much").
 const GREETING_PREFIXES: &[&str] = &[
-    "你好", "您好", "哈喽", "嗨", "早上好", "晚上好", "晚安", "谢谢", "多谢", "感谢",
-    "再见", "拜拜", "hello", "hi ", "hey ", "thanks", "thank you", "good morning",
-    "good afternoon", "good evening", "good night",
+    "你好",
+    "您好",
+    "哈喽",
+    "嗨",
+    "早上好",
+    "晚上好",
+    "晚安",
+    "谢谢",
+    "多谢",
+    "感谢",
+    "再见",
+    "拜拜",
+    "hello",
+    "hi ",
+    "hey ",
+    "thanks",
+    "thank you",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "good night",
 ];
 
 /// Substrings that mark a real request — an actual question or an instruction to act
@@ -48,12 +138,52 @@ const GREETING_PREFIXES: &[&str] = &[
 /// (the curated exact list still wins, so deliberate exceptions like "你是谁" work).
 const QUESTION_SIGNALS: &[&str] = &[
     // Chinese interrogatives / imperatives.
-    "什么", "为什么", "为何", "怎么", "怎样", "如何", "多少", "哪", "啥", "是不是",
-    "能不能", "可不可以", "有没有", "总结", "概括", "解释", "说明", "分析", "翻译",
-    "对比", "区别", "列出", "查", "找", "帮我", "帮忙", "讲了", "讲的", "介绍一下这",
+    "什么",
+    "为什么",
+    "为何",
+    "怎么",
+    "怎样",
+    "如何",
+    "多少",
+    "哪",
+    "啥",
+    "是不是",
+    "能不能",
+    "可不可以",
+    "有没有",
+    "总结",
+    "概括",
+    "解释",
+    "说明",
+    "分析",
+    "翻译",
+    "对比",
+    "区别",
+    "列出",
+    "查",
+    "找",
+    "帮我",
+    "帮忙",
+    "讲了",
+    "讲的",
+    "介绍一下这",
     // English interrogatives / imperatives.
-    "what ", "why", "how ", "which", "where", "when", "explain", "summar", "analyz",
-    "translate", "compare", "list ", "find ", "search", "help me", "tell me about",
+    "what ",
+    "why",
+    "how ",
+    "which",
+    "where",
+    "when",
+    "explain",
+    "summar",
+    "analyz",
+    "translate",
+    "compare",
+    "list ",
+    "find ",
+    "search",
+    "help me",
+    "tell me about",
 ];
 
 /// Whether `question` is a short, unambiguous conversational message that needs no
@@ -90,7 +220,10 @@ pub fn is_smalltalk(question: &str, has_context: bool) -> bool {
 /// fails (network / provider error) — so a smalltalk turn never dead-ends on an
 /// error message. Mirrors the user's script (Han → Chinese, else English).
 pub fn default_reply(question: &str) -> String {
-    if question.chars().any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c)) {
+    if question
+        .chars()
+        .any(|c| ('\u{4e00}'..='\u{9fff}').contains(&c))
+    {
         "你好！我是你的知识库助手，有什么可以帮你的吗？".to_string()
     } else {
         "Hi! I'm your knowledge-base assistant — how can I help?".to_string()
@@ -134,7 +267,9 @@ fn has_question_signal(norm: &str) -> bool {
 }
 
 fn starts_with_greeting(norm: &str) -> bool {
-    GREETING_PREFIXES.iter().any(|prefix| norm.starts_with(prefix))
+    GREETING_PREFIXES
+        .iter()
+        .any(|prefix| norm.starts_with(prefix))
 }
 
 #[cfg(test)]

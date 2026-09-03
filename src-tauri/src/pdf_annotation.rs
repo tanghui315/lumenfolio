@@ -105,10 +105,14 @@ pub(crate) fn save_pdf_at_path(input: SavePdfAtPathInput) -> Result<PdfSaveOutpu
 /// This is intentionally separate from `read_pdf_artifact_bytes`, whose path
 /// guard only admits pdf2zh cache artifacts.
 #[tauri::command]
-pub(crate) fn read_saved_pdf_bytes(path: String) -> Result<Response, String> {
-    let path = canonical_existing_pdf_path(&path)?;
-    let bytes = fs::read(&path).map_err(|err| format!("Failed to read saved PDF: {err}"))?;
-    Ok(Response::new(bytes))
+pub(crate) async fn read_saved_pdf_bytes(path: String) -> Result<Response, String> {
+    crate::run_blocking_io(move || {
+        let path = canonical_existing_pdf_path(&path)?;
+        let bytes =
+            fs::read(&path).map_err(|err| crate::map_file_read_error("saved PDF", &path, err))?;
+        Ok(Response::new(bytes))
+    })
+    .await
 }
 
 fn require_document_id(raw: &str) -> Result<String, String> {
@@ -119,7 +123,10 @@ fn require_document_id(raw: &str) -> Result<String, String> {
     Ok(document_id.to_string())
 }
 
-fn registered_document_path(registry: &State<'_, PdfRegistry>, document_id: &str) -> Result<PathBuf, String> {
+fn registered_document_path(
+    registry: &State<'_, PdfRegistry>,
+    document_id: &str,
+) -> Result<PathBuf, String> {
     let paths = registry
         .paths
         .lock()
@@ -299,7 +306,9 @@ fn write_pdf_atomically(path: &Path, bytes: &[u8]) -> Result<PdfSaveOutput, Stri
             let _ = fs::rename(&backup, path);
         }
         let _ = fs::remove_file(&temp);
-        return Err(format!("Failed to replace PDF with annotated version: {err}"));
+        return Err(format!(
+            "Failed to replace PDF with annotated version: {err}"
+        ));
     }
 
     if had_original {
@@ -334,12 +343,18 @@ fn write_and_sync(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 fn adjacent_temporary_path(path: &Path, suffix: &str) -> PathBuf {
-    let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("document.pdf");
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("document.pdf");
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    path.with_file_name(format!(".{file_name}.lumenfolio-{suffix}-{}-{nonce}", std::process::id()))
+    path.with_file_name(format!(
+        ".{file_name}.lumenfolio-{suffix}-{}-{nonce}",
+        std::process::id()
+    ))
 }
 
 fn file_modified_epoch(path: &Path) -> Result<i64, String> {
@@ -403,9 +418,11 @@ mod tests {
         let output = write_pdf_atomically(&target, b"%PDF-1.7\nnew").expect("save");
         assert_eq!(output.size, 12);
         assert_eq!(fs::read(&target).expect("read"), b"%PDF-1.7\nnew");
-        assert!(fs::read_dir(&dir)
-            .expect("read dir")
-            .all(|entry| !entry.expect("entry").file_name().to_string_lossy().contains("lumenfolio-")));
+        assert!(fs::read_dir(&dir).expect("read dir").all(|entry| !entry
+            .expect("entry")
+            .file_name()
+            .to_string_lossy()
+            .contains("lumenfolio-")));
         let _ = fs::remove_dir_all(dir);
     }
 

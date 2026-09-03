@@ -212,11 +212,7 @@ fn related_inter_links(
     if ids.len() < 2 {
         return Ok(Vec::new());
     }
-    let placeholders = ids
-        .iter()
-        .map(|_| "?")
-        .collect::<Vec<_>>()
-        .join(",");
+    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
     let id_params = rusqlite::params_from_iter(ids.iter().chain(ids.iter()));
 
     let mut pairs: HashMap<(String, String), (i64, f64)> = HashMap::new();
@@ -281,12 +277,14 @@ fn related_inter_links(
 
     Ok(pairs
         .into_iter()
-        .map(|((doc_a, doc_b), (shared_count, co_citation))| RelatedLink {
-            doc_a,
-            doc_b,
-            shared_count,
-            co_citation,
-        })
+        .map(
+            |((doc_a, doc_b), (shared_count, co_citation))| RelatedLink {
+                doc_a,
+                doc_b,
+                shared_count,
+                co_citation,
+            },
+        )
         .collect())
 }
 
@@ -431,7 +429,8 @@ pub(crate) fn get_turn_recommendations(
             let (normalized, name) = row;
             let needle = name.trim().to_lowercase();
             if needle.len() >= 2 && concept_mentioned(&haystack, &needle) {
-                seed.entry(normalized.clone()).or_insert_with(|| name.clone());
+                seed.entry(normalized.clone())
+                    .or_insert_with(|| name.clone());
             }
             if fallback.len() < 8 {
                 fallback.push((normalized, name));
@@ -521,7 +520,11 @@ pub(crate) fn get_turn_recommendations(
             if !entry.seen.insert(normalized.clone()) {
                 continue;
             }
-            let affinity = if kind == "entity" { ENTITY_AFFINITY } else { 1.0 };
+            let affinity = if kind == "entity" {
+                ENTITY_AFFINITY
+            } else {
+                1.0
+            };
             entry.overlap += affinity;
             let df = (*doc_freq.get(&normalized).unwrap_or(&2)).max(2) as f64;
             entry.adamic_adar += affinity / df.ln();
@@ -574,13 +577,14 @@ pub(crate) fn get_turn_recommendations(
             .query_map(
                 params![turn_id, focus_document_id, CLAIMS_SCAN_LIMIT as i64],
                 |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                ))
-            })
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                    ))
+                },
+            )
             .map_err(|err| format!("Failed to query related claims: {err}"))?;
         for row in rows.filter_map(Result::ok) {
             let (document_id, title, claim, question) = row;
@@ -706,11 +710,7 @@ pub(crate) fn search_library(
             matched_concepts: item.names,
         })
         .collect();
-    hits.sort_by(|a, b| {
-        b.score
-            .cmp(&a.score)
-            .then_with(|| a.title.cmp(&b.title))
-    });
+    hits.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.title.cmp(&b.title)));
     hits.truncate(limit);
     Ok(hits)
 }
@@ -760,7 +760,9 @@ pub(crate) fn related_documents(
             )
             .map_err(|err| format!("Failed to prepare doc-frequency query: {err}"))?;
         let map = stmt
-            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)))
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
             .map_err(|err| format!("Failed to query doc frequency: {err}"))?
             .filter_map(Result::ok)
             .collect::<HashMap<_, _>>();
@@ -802,7 +804,11 @@ pub(crate) fn related_documents(
             if !entry.seen.insert(normalized.clone()) {
                 continue; // already counted this shared concept for this doc
             }
-            let affinity = if kind == "entity" { ENTITY_AFFINITY } else { 1.0 };
+            let affinity = if kind == "entity" {
+                ENTITY_AFFINITY
+            } else {
+                1.0
+            };
             entry.overlap += affinity;
             let df = (*doc_freq.get(&normalized).unwrap_or(&2)).max(2) as f64;
             entry.adamic_adar += affinity / df.ln();

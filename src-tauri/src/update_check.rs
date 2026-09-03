@@ -39,7 +39,10 @@ fn parse_semver(raw: &str) -> Option<(u32, u32, u32)> {
     let major = parts.next()?.parse().ok()?;
     let minor = parts.next()?.parse().ok()?;
     let patch_raw = parts.next().unwrap_or("0");
-    let patch_digits: String = patch_raw.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let patch_digits: String = patch_raw
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
     let patch = patch_digits.parse().unwrap_or(0);
     Some((major, minor, patch))
 }

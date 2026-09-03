@@ -34,9 +34,9 @@ mod runtime;
 mod search_text;
 mod storage;
 mod translation;
-mod vault;
 mod trending;
 mod update_check;
+mod vault;
 mod vision;
 mod visual_index;
 
@@ -71,8 +71,13 @@ pub(crate) fn cancellation_token(
     app: &tauri::AppHandle,
     event_id: &str,
 ) -> Option<tokio_util::sync::CancellationToken> {
-    app.try_state::<AskCancellations>()
-        .and_then(|state| state.0.lock().ok().and_then(|map| map.get(event_id).cloned()))
+    app.try_state::<AskCancellations>().and_then(|state| {
+        state
+            .0
+            .lock()
+            .ok()
+            .and_then(|map| map.get(event_id).cloned())
+    })
 }
 
 type AgentSessionState = runtime::agent::AgentSessionStore;
@@ -1205,12 +1210,27 @@ struct ImportWorkspacePathsArgs {
 /// Files (and, recursively, a folder's contents) are registered by their real
 /// path — never copied, never bound to a live disk scan — and filed into the
 /// target collection. Returns the refreshed Knowledge Base doc pool.
+///
+/// Runs off the UI thread: `canonicalize` on an iCloud / File Provider path can
+/// block for a long time, and a sync command would freeze the window.
 #[tauri::command]
-fn import_workspace_paths(
+async fn import_workspace_paths(
     args: ImportWorkspacePathsArgs,
-    registry: State<'_, PdfRegistry>,
-    database: State<'_, AppDatabase>,
     app: tauri::AppHandle,
+) -> Result<Vec<WorkspaceRootSnapshot>, String> {
+    run_blocking_io(move || {
+        let registry = app.state::<PdfRegistry>();
+        let database = app.state::<AppDatabase>();
+        import_workspace_paths_inner(args, &registry, &database, &app)
+    })
+    .await
+}
+
+fn import_workspace_paths_inner(
+    args: ImportWorkspacePathsArgs,
+    registry: &State<'_, PdfRegistry>,
+    database: &State<'_, AppDatabase>,
+    app: &tauri::AppHandle,
 ) -> Result<Vec<WorkspaceRootSnapshot>, String> {
     let ImportWorkspacePathsArgs {
         target_collection_id,
@@ -1343,7 +1363,6 @@ fn import_workspace_paths(
     Ok(vec![knowledge_root_snapshot(&database)?])
 }
 
-
 // ---------------------------------------------------------------------------
 // Knowledge-base pivot (P2): authored sources (notes / web clips / md imports).
 //
@@ -1472,7 +1491,9 @@ fn backup_settings_snapshot(conn: &Connection) -> Result<BackupSettings, String>
             .unwrap_or(0),
         last_at: load_app_setting(conn, backup::BACKUP_LAST_AT_SETTING)?
             .and_then(|value| value.trim().parse::<i64>().ok()),
-        entries: dir.map(|path| backup::list_snapshots(&path)).unwrap_or_default(),
+        entries: dir
+            .map(|path| backup::list_snapshots(&path))
+            .unwrap_or_default(),
     })
 }
 
@@ -2663,7 +2684,9 @@ fn read_chat_session_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ChatSessio
         title: row.get(1)?,
         focus_document_id: optional_non_empty(row.get::<_, Option<String>>(2)?.unwrap_or_default()),
         referenced_document_ids,
-        focus_document_title: optional_non_empty(row.get::<_, Option<String>>(4)?.unwrap_or_default()),
+        focus_document_title: optional_non_empty(
+            row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+        ),
         turn_count: row.get(5)?,
         created_at: row.get(6)?,
         updated_at: row.get(7)?,
@@ -2690,9 +2713,11 @@ fn load_chat_session_by_id(
         .query_map(params![session_id], read_chat_session_row)
         .map_err(|err| format!("Failed to load chat session: {err}"))?;
     match rows.next() {
-        Some(row) => Ok(Some(
-            row.map_err(|err| format!("Failed to read chat session: {err}"))?,
-        )),
+        Some(row) => {
+            Ok(Some(row.map_err(|err| {
+                format!("Failed to read chat session: {err}")
+            })?))
+        }
         None => Ok(None),
     }
 }
@@ -2793,8 +2818,7 @@ fn rename_chat_session(
     if affected == 0 {
         return Err("Chat session not found".to_string());
     }
-    load_chat_session_by_id(&conn, session_id)?
-        .ok_or_else(|| "Chat session not found".to_string())
+    load_chat_session_by_id(&conn, session_id)?.ok_or_else(|| "Chat session not found".to_string())
 }
 
 #[derive(Deserialize)]
@@ -2832,8 +2856,7 @@ fn update_chat_session_focus(
     if affected == 0 {
         return Err("Chat session not found".to_string());
     }
-    load_chat_session_by_id(&conn, session_id)?
-        .ok_or_else(|| "Chat session not found".to_string())
+    load_chat_session_by_id(&conn, session_id)?.ok_or_else(|| "Chat session not found".to_string())
 }
 
 #[derive(Deserialize)]
@@ -2864,8 +2887,11 @@ fn delete_chat_session(
         params![session_id],
     )
     .map_err(|err| format!("Failed to delete chat session turns: {err}"))?;
-    conn.execute("DELETE FROM chat_sessions WHERE id = ?1", params![session_id])
-        .map_err(|err| format!("Failed to delete chat session: {err}"))?;
+    conn.execute(
+        "DELETE FROM chat_sessions WHERE id = ?1",
+        params![session_id],
+    )
+    .map_err(|err| format!("Failed to delete chat session: {err}"))?;
     drop(conn);
     agent_sessions.clear_session(session_id);
     Ok(())
@@ -2923,7 +2949,8 @@ async fn generate_session_title(
     } else {
         let (provider, _) =
             providers::resolve_chat_provider(&database, provider_id, input.model_key.as_deref())?;
-        llm::chat::generate_session_title_with_openai_compatible(question, &answer, &provider).await?
+        llm::chat::generate_session_title_with_openai_compatible(question, &answer, &provider)
+            .await?
     };
     let title = clamp_session_title(&raw_title);
     if title.is_empty() {
@@ -3476,9 +3503,8 @@ fn friendly_tool_label(tool: &str) -> &str {
         "open_table" | "search_table_facts" | "resolve_table_anchor" => "Reading a table",
         "inspect_tables" => "Inspecting tables",
         "inspect_tree" | "read_tree_node_lines" => "Inspecting structure",
-        "inspect_visuals" | "open_visual" | "analyze_visual" | "inspect_objects" | "analyze_page" => {
-            "Inspecting figures"
-        }
+        "inspect_visuals" | "open_visual" | "analyze_visual" | "inspect_objects"
+        | "analyze_page" => "Inspecting figures",
         "query_knowledge_graph" => "Querying the knowledge graph",
         "search_library_knowledge" => "Searching your library",
         "list_trending_papers" => "Checking trending papers",
@@ -3792,9 +3818,7 @@ async fn run_ask_document(
             .filter(|value| !value.is_empty())
             .is_none()
     {
-        log::info!(
-            "Suppressing current-view seeding: question names a non-focus document"
-        );
+        log::info!("Suppressing current-view seeding: question names a non-focus document");
         None
     } else {
         current_view_decision_for_input(
@@ -4073,7 +4097,14 @@ questions spanning their library use search_library_knowledge / query_knowledge_
                 &session_memory,
                 input.locale.as_deref(),
             );
-            match local_agent::generate_answer(kind, prompt, input.image_data_url.clone(), agent_cancel.clone()).await {
+            match local_agent::generate_answer(
+                kind,
+                prompt,
+                input.image_data_url.clone(),
+                agent_cancel.clone(),
+            )
+            .await
+            {
                 Ok(answer) => {
                     unified_answer = Some(AskAnswerResult {
                         answer,
@@ -4095,82 +4126,82 @@ questions spanning their library use search_library_knowledge / query_knowledge_
     }
 
     if unified_answer.is_none() {
-    if let Ok((provider, _)) = provider_result.as_ref() {
-        // Strong (native tool-calling) models go through the unified agent loop;
-        // others (and image questions) use the legacy M4 judge + answer path.
-        if llm::agent_loop::should_use_unified_loop(provider, &input) {
-            unified_attempted = true;
-            // Clone the session memory block up front so the loop can borrow
-            // `agent_run` mutably (to accumulate citations) without conflicting.
-            let session_context = agent_run.session_context.clone();
-            match llm::agent_loop::run_unified_agent_loop(
-                llm::agent_loop::UnifiedLoopInput {
-                    input: &input,
-                    database,
-                    app,
-                    question,
-                    document_id,
-                    visible_document_ids: &unified_visible_document_id_refs,
-                    workspace_manifest: &unified_loop_manifest_text,
-                    library_is_large,
-                    session_context: &session_context,
-                    provider,
-                    activity_event_id: activity_event_id.as_deref(),
-                },
-                &mut agent_run,
-            )
-            .await
-            {
-                Ok(result) => unified_answer = Some(result),
-                // User stopped it: propagate so the turn finalizes as "stopped"
-                // instead of falling through to another (best-effort) answer attempt.
-                Err(err) if err == llm::agent_loop::GENERATION_STOPPED => return Err(err),
-                Err(err) => {
-                    log::warn!(
-                        "Unified agent loop failed; answering from gathered evidence: {err}"
-                    );
+        if let Ok((provider, _)) = provider_result.as_ref() {
+            // Strong (native tool-calling) models go through the unified agent loop;
+            // others (and image questions) use the legacy M4 judge + answer path.
+            if llm::agent_loop::should_use_unified_loop(provider, &input) {
+                unified_attempted = true;
+                // Clone the session memory block up front so the loop can borrow
+                // `agent_run` mutably (to accumulate citations) without conflicting.
+                let session_context = agent_run.session_context.clone();
+                match llm::agent_loop::run_unified_agent_loop(
+                    llm::agent_loop::UnifiedLoopInput {
+                        input: &input,
+                        database,
+                        app,
+                        question,
+                        document_id,
+                        visible_document_ids: &unified_visible_document_id_refs,
+                        workspace_manifest: &unified_loop_manifest_text,
+                        library_is_large,
+                        session_context: &session_context,
+                        provider,
+                        activity_event_id: activity_event_id.as_deref(),
+                    },
+                    &mut agent_run,
+                )
+                .await
+                {
+                    Ok(result) => unified_answer = Some(result),
+                    // User stopped it: propagate so the turn finalizes as "stopped"
+                    // instead of falling through to another (best-effort) answer attempt.
+                    Err(err) if err == llm::agent_loop::GENERATION_STOPPED => return Err(err),
+                    Err(err) => {
+                        log::warn!(
+                            "Unified agent loop failed; answering from gathered evidence: {err}"
+                        );
+                    }
                 }
             }
-        }
-        if !unified_attempted {
-            if let Err(err) = agent_judge::improve_retrieval_with_llm_judge(
-                agent_judge::LlmJudgeLoopInput {
-                    input: &input,
-                    database,
-                    app: Some(app),
-                    question,
-                    document_id,
-                    visible_document_ids: &visible_document_id_refs,
-                    workspace_manifest: &workspace_manifest_text,
-                    provider,
-                    activity_event_id: activity_event_id.as_deref(),
-                },
-                &mut agent_run,
-            )
-            .await
-            {
-                log::warn!("LLM answerability judge skipped: {err}");
+            if !unified_attempted {
+                if let Err(err) = agent_judge::improve_retrieval_with_llm_judge(
+                    agent_judge::LlmJudgeLoopInput {
+                        input: &input,
+                        database,
+                        app: Some(app),
+                        question,
+                        document_id,
+                        visible_document_ids: &visible_document_id_refs,
+                        workspace_manifest: &workspace_manifest_text,
+                        provider,
+                        activity_event_id: activity_event_id.as_deref(),
+                    },
+                    &mut agent_run,
+                )
+                .await
+                {
+                    log::warn!("LLM answerability judge skipped: {err}");
+                }
             }
-        }
-    } else if let Err(err) = provider_result.as_ref() {
-        let judge_required = !agent_judge::has_image_context(&input)
-            && agent_judge::requires_llm_judge_for_answer(question);
-        if judge_required {
-            let gate = serde_json::json!({
-                "status": "insufficient",
-                "reason": format!(
-                    "M4 LLM judge is required for this question, but no configured chat provider was available: {err}"
-                ),
-                "missing": serde_json::json!(["LLM evidence judge"]),
-                "nextToolCall": serde_json::Value::Null,
-                "citationCount": agent_run.retrieval_run.citations.len(),
-                "runtime": "m4-llm-judge",
-                "skipped": false
-            });
-            agent_run.retrieval_run.trace.finalize_gate = gate.clone();
-            agent_run.trace.finalize_gate = gate.clone();
-        }
-        let event = runtime::agent::AgentTraceEvent::new(
+        } else if let Err(err) = provider_result.as_ref() {
+            let judge_required = !agent_judge::has_image_context(&input)
+                && agent_judge::requires_llm_judge_for_answer(question);
+            if judge_required {
+                let gate = serde_json::json!({
+                    "status": "insufficient",
+                    "reason": format!(
+                        "M4 LLM judge is required for this question, but no configured chat provider was available: {err}"
+                    ),
+                    "missing": serde_json::json!(["LLM evidence judge"]),
+                    "nextToolCall": serde_json::Value::Null,
+                    "citationCount": agent_run.retrieval_run.citations.len(),
+                    "runtime": "m4-llm-judge",
+                    "skipped": false
+                });
+                agent_run.retrieval_run.trace.finalize_gate = gate.clone();
+                agent_run.trace.finalize_gate = gate.clone();
+            }
+            let event = runtime::agent::AgentTraceEvent::new(
             "judge_result",
             "finalize_answer",
             if judge_required { "error" } else { "skipped" },
@@ -4201,9 +4232,9 @@ questions spanning their library use search_library_knowledge / query_knowledge_
             "runtime": "m4-llm-judge",
             "skipped": !judge_required
         }));
-        agent_judge::emit_agent_activity(app, activity_event_id.as_deref(), event.clone());
-        agent_run.trace.events.push(event);
-    }
+            agent_judge::emit_agent_activity(app, activity_event_id.as_deref(), event.clone());
+            agent_run.trace.events.push(event);
+        }
     } // end: if unified_answer.is_none()
 
     attach_context_budget_to_agent_run(&mut agent_run);
@@ -4487,8 +4518,11 @@ fn persist_chat_turn(
     // claims + co-citation doc<->doc edges from data we just stored. Gated on the
     // knowledge setting; best-effort (a failure must not fail the turn save).
     if input.knowledge_enabled {
-        let claim_texts: Vec<&str> =
-            input.claims.iter().map(|claim| claim.text.as_str()).collect();
+        let claim_texts: Vec<&str> = input
+            .claims
+            .iter()
+            .map(|claim| claim.text.as_str())
+            .collect();
         let cited_document_ids: Vec<&str> = input
             .citations
             .iter()
@@ -4957,9 +4991,7 @@ struct SaveProxySettingsInput {
 }
 
 #[tauri::command]
-fn load_proxy_settings(
-    database: State<'_, AppDatabase>,
-) -> Result<ProxySettingsOutput, String> {
+fn load_proxy_settings(database: State<'_, AppDatabase>) -> Result<ProxySettingsOutput, String> {
     let conn = database
         .conn
         .lock()
@@ -4988,9 +5020,7 @@ fn save_proxy_settings(
     } else {
         Some(trimmed.clone())
     });
-    Ok(ProxySettingsOutput {
-        proxy_url: trimmed,
-    })
+    Ok(ProxySettingsOutput { proxy_url: trimmed })
 }
 
 #[tauri::command]
@@ -5310,26 +5340,59 @@ async fn test_translation_provider(
     })
 }
 
+/// Run blocking filesystem work off the Tauri UI thread.
+///
+/// Sync commands execute on the main thread. `std::fs::read` / `canonicalize`
+/// of an iCloud, File Provider, or network path can sit in the kernel for tens
+/// of seconds and freeze the window (macOS rainbow cursor) until it returns
+/// `ETIMEDOUT`. `async` plus `spawn_blocking` keeps the event loop free so the
+/// viewer can keep showing its loading state.
+pub(crate) async fn run_blocking_io<T, F>(task: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(task)
+        .await
+        .map_err(|err| format!("Background I/O task failed: {err}"))?
+}
+
+pub(crate) fn map_file_read_error(what: &str, path: &Path, err: std::io::Error) -> String {
+    if err.kind() == std::io::ErrorKind::TimedOut || err.raw_os_error() == Some(60) {
+        format!(
+            "Failed to read {what}: timed out while opening {}. The file may still be downloading from iCloud or a network drive.",
+            path.display()
+        )
+    } else {
+        format!("Failed to read {what}: {err}")
+    }
+}
+
+fn registry_path(registry: &PdfRegistry, doc_id: &str, unknown: &str) -> Result<PathBuf, String> {
+    let paths = registry
+        .paths
+        .lock()
+        .map_err(|_| "PDF registry lock was poisoned".to_string())?;
+    paths
+        .get(doc_id)
+        .cloned()
+        .ok_or_else(|| unknown.to_string())
+}
+
 #[tauri::command]
-fn read_pdf_bytes(
+async fn read_pdf_bytes(
     doc_id: String,
     registry: State<'_, PdfRegistry>,
 ) -> Result<tauri::ipc::Response, String> {
-    let path = {
-        let paths = registry
-            .paths
-            .lock()
-            .map_err(|_| "PDF registry lock was poisoned".to_string())?;
-        paths
-            .get(&doc_id)
-            .cloned()
-            .ok_or_else(|| "Unknown PDF document id".to_string())?
-    };
+    let path = registry_path(&registry, &doc_id, "Unknown PDF document id")?;
 
     // Return raw bytes via `Response` so the webview receives an ArrayBuffer.
     // A plain `Vec<u8>` would serialize as a JSON array of numbers, which costs
     // multiple seconds of main-thread deserialization for multi-MB PDFs.
-    let bytes = fs::read(path).map_err(|err| format!("Failed to read PDF: {err}"))?;
+    let bytes = run_blocking_io(move || {
+        fs::read(&path).map_err(|err| map_file_read_error("PDF", &path, err))
+    })
+    .await?;
     Ok(tauri::ipc::Response::new(bytes))
 }
 
@@ -5337,21 +5400,15 @@ fn read_pdf_bytes(
 /// webview (ArrayBuffer) for client-side Office preview (docx/xlsx). Same
 /// registry-backed path resolution as PDFs.
 #[tauri::command]
-fn read_document_bytes(
+async fn read_document_bytes(
     doc_id: String,
     registry: State<'_, PdfRegistry>,
 ) -> Result<tauri::ipc::Response, String> {
-    let path = {
-        let paths = registry
-            .paths
-            .lock()
-            .map_err(|_| "PDF registry lock was poisoned".to_string())?;
-        paths
-            .get(&doc_id)
-            .cloned()
-            .ok_or_else(|| "Unknown document id".to_string())?
-    };
-    let bytes = fs::read(path).map_err(|err| format!("Failed to read document: {err}"))?;
+    let path = registry_path(&registry, &doc_id, "Unknown document id")?;
+    let bytes = run_blocking_io(move || {
+        fs::read(&path).map_err(|err| map_file_read_error("document", &path, err))
+    })
+    .await?;
     Ok(tauri::ipc::Response::new(bytes))
 }
 
@@ -5786,9 +5843,29 @@ mod tests {
     use super::*;
 
     #[test]
+    fn map_file_read_error_explains_timeout() {
+        let err = std::io::Error::from(std::io::ErrorKind::TimedOut);
+        let message = map_file_read_error("PDF", Path::new("/tmp/paper.pdf"), err);
+        assert!(message.contains("timed out while opening"));
+        assert!(message.contains("iCloud"));
+        assert!(message.contains("/tmp/paper.pdf"));
+    }
+
+    #[test]
+    fn map_file_read_error_keeps_ordinary_io_errors() {
+        let err = std::io::Error::from(std::io::ErrorKind::NotFound);
+        let message = map_file_read_error("PDF", Path::new("/tmp/missing.pdf"), err);
+        assert!(message.starts_with("Failed to read PDF:"));
+        assert!(!message.contains("iCloud"));
+    }
+
+    #[test]
     fn mentions_token_requires_word_boundaries() {
         // Whole-token match.
-        assert!(mentions_token("what is forge_ieee_preprint.pdf about", "forge_ieee_preprint"));
+        assert!(mentions_token(
+            "what is forge_ieee_preprint.pdf about",
+            "forge_ieee_preprint"
+        ));
         assert!(mentions_token("summarize data today", "data"));
         // Substring inside a larger word must NOT match.
         assert!(!mentions_token("explain the database schema", "data"));

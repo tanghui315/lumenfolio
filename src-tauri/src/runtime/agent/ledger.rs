@@ -253,7 +253,10 @@ mod tests {
         ]);
         let summary = ledger.coverage_summary().expect("non-empty coverage");
         assert!(summary.contains("pages 1, 2"), "summary={summary}");
-        assert!(summary.contains("sections: Introduction"), "summary={summary}");
+        assert!(
+            summary.contains("sections: Introduction"),
+            "summary={summary}"
+        );
         assert!(summary.contains("tables: Table 3"), "summary={summary}");
         assert!(summary.contains("visuals: Figure 1"), "summary={summary}");
     }
@@ -272,7 +275,10 @@ mod tests {
         assert!(summary.contains("sections: Intro"), "summary={summary}");
         assert!(summary.contains("[paperB] pages 5"), "summary={summary}");
         assert!(summary.contains("sections: Method"), "summary={summary}");
-        assert!(summary.contains(" | "), "blocks should be separated; summary={summary}");
+        assert!(
+            summary.contains(" | "),
+            "blocks should be separated; summary={summary}"
+        );
     }
 
     #[test]
@@ -280,7 +286,12 @@ mod tests {
         // These are the actual Citation `source` strings the RAG tools emit;
         // they must land under tables/visuals, not be misfiled as sections.
         let mut ledger = RetrievalLedger::new();
-        for source in ["table_fact", "open_table_context", "inspect_tables", "table_anchor"] {
+        for source in [
+            "table_fact",
+            "open_table_context",
+            "inspect_tables",
+            "table_anchor",
+        ] {
             ledger.record_coverage(&[citation(source, 5, Some("Table 2"))]);
         }
         for source in [

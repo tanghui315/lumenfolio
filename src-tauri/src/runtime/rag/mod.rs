@@ -1351,8 +1351,7 @@ fn execute_search_library_knowledge_tool(
 ) -> Result<RagToolExecutionOutput, String> {
     let query = string_arg(args, "query").unwrap_or_default().to_string();
     let limit = u32_arg(args, "limit", 10, 1, 20) as usize;
-    let hits =
-        crate::runtime::knowledge_graph::search_library(registry.conn, &query, limit)?;
+    let hits = crate::runtime::knowledge_graph::search_library(registry.conn, &query, limit)?;
     let citations: Vec<Citation> = hits
         .iter()
         .enumerate()
@@ -1565,7 +1564,10 @@ fn execute_list_sources_tool(
     registry: &RagToolRegistry<'_>,
     args: &serde_json::Value,
 ) -> Result<RagToolExecutionOutput, String> {
-    let query = string_arg(args, "query").unwrap_or("").trim().to_lowercase();
+    let query = string_arg(args, "query")
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
     let content_type = string_arg(args, "contentType")
         .map(|value| value.trim().to_lowercase())
         .filter(|value| !value.is_empty());
@@ -1691,7 +1693,8 @@ fn execute_read_sheet_tool(
         .and_then(|value| value.as_str())
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    let grid = crate::office::read_xlsx_markdown(std::path::Path::new(&path), sheet, MAX_SHEET_CELLS)?;
+    let grid =
+        crate::office::read_xlsx_markdown(std::path::Path::new(&path), sheet, MAX_SHEET_CELLS)?;
     let section_title = match sheet {
         Some(name) => format!("{title} · {name}"),
         None => format!("{title} (spreadsheet)"),
@@ -1774,7 +1777,12 @@ fn execute_propose_note_edit_tool(
             let new_text = item
                 .get("newText")
                 .and_then(|value| value.as_str())
-                .ok_or_else(|| format!("Edit {}: newText is required (use \"\" to delete)", index + 1))?
+                .ok_or_else(|| {
+                    format!(
+                        "Edit {}: newText is required (use \"\" to delete)",
+                        index + 1
+                    )
+                })?
                 .to_string();
             parsed.push(crate::runtime::note_edit::NoteEdit { old_text, new_text });
         }
@@ -1782,13 +1790,15 @@ fn execute_propose_note_edit_tool(
         let count = resolved.len();
         let json = resolved
             .into_iter()
-            .map(|item| {
-                serde_json::json!({ "oldText": item.old_text, "newText": item.new_text })
-            })
+            .map(|item| serde_json::json!({ "oldText": item.old_text, "newText": item.new_text }))
             .collect::<Vec<_>>();
         (next, serde_json::Value::Array(json), count)
     } else {
-        (content.to_string(), serde_json::Value::Null, content.lines().count())
+        (
+            content.to_string(),
+            serde_json::Value::Null,
+            content.lines().count(),
+        )
     };
     // A short ack, not the text: the model already has its own proposal, so echoing
     // it back as evidence would just burn context.
@@ -1840,7 +1850,10 @@ fn execute_web_search_tool(
     args: &serde_json::Value,
     fallback_query: &str,
 ) -> Result<RagToolExecutionOutput, String> {
-    let query = string_arg(args, "query").unwrap_or(fallback_query).trim().to_string();
+    let query = string_arg(args, "query")
+        .unwrap_or(fallback_query)
+        .trim()
+        .to_string();
     let limit = u32_arg(args, "limit", 5, 1, 10) as usize;
     let api_key = exa_api_key(registry.conn);
     let hits = crate::runtime::web_search::web_search(api_key.as_deref(), &query, limit)?;
@@ -1899,11 +1912,7 @@ fn execute_web_fetch_tool(
         citations: vec![citation],
         trace_candidates: Vec::new(),
         tree_nodes: Vec::new(),
-        tool_call: tool_success_call(
-            RagToolName::WebFetch,
-            serde_json::json!({ "url": url }),
-            1,
-        ),
+        tool_call: tool_success_call(RagToolName::WebFetch, serde_json::json!({ "url": url }), 1),
     })
 }
 
@@ -2678,23 +2687,25 @@ pub fn recall_chat_history(
 
     let candidates = selected
         .into_iter()
-        .map(|(turn_id, user_message, assistant_answer)| EvidenceCandidate {
-            chunk_id: turn_id.clone(),
-            document_id: document_id.to_string(),
-            page: 0,
-            block_id: turn_id,
-            section_title: Some("Chat history".to_string()),
-            quote: format!(
-                "Q: {}\nA: {}",
-                truncate_chars(user_message.trim(), 200),
-                truncate_chars(assistant_answer.trim(), 320)
-            ),
-            bbox_list: serde_json::json!([]),
-            score: 0.0,
-            source: "chat_history".to_string(),
-            tree_node_id: None,
-            block_role: None,
-        })
+        .map(
+            |(turn_id, user_message, assistant_answer)| EvidenceCandidate {
+                chunk_id: turn_id.clone(),
+                document_id: document_id.to_string(),
+                page: 0,
+                block_id: turn_id,
+                section_title: Some("Chat history".to_string()),
+                quote: format!(
+                    "Q: {}\nA: {}",
+                    truncate_chars(user_message.trim(), 200),
+                    truncate_chars(assistant_answer.trim(), 320)
+                ),
+                bbox_list: serde_json::json!([]),
+                score: 0.0,
+                source: "chat_history".to_string(),
+                tree_node_id: None,
+                block_role: None,
+            },
+        )
         .collect();
     Ok(candidates)
 }
@@ -8017,7 +8028,13 @@ mod tests {
         .unwrap();
 
         // No query → both papers.
-        let all = execute_rag_tool_call(&conn, "doc", "list_trending_papers", &serde_json::json!({}), "");
+        let all = execute_rag_tool_call(
+            &conn,
+            "doc",
+            "list_trending_papers",
+            &serde_json::json!({}),
+            "",
+        );
         assert_eq!(all.tool_call.tool, "list_trending_papers");
         assert_eq!(all.citations.len(), 2);
 
@@ -8127,11 +8144,16 @@ mod tests {
         assert!(all.citations[0].quote.contains("documentId: pdf-1"));
         assert!(all.citations[0].quote.contains("collection: Research"));
         // A source that is not ready says so, rather than reading as thin content.
-        assert!(all.citations[2].quote.contains("index: indexing"), "{}", all.citations[2].quote);
+        assert!(
+            all.citations[2].quote.contains("index: indexing"),
+            "{}",
+            all.citations[2].quote
+        );
 
         // Title filter is case-insensitive and matches mid-string.
-        let budget = execute_list_sources_tool(&registry, &serde_json::json!({ "query": "budget" }))
-            .expect("filtered");
+        let budget =
+            execute_list_sources_tool(&registry, &serde_json::json!({ "query": "budget" }))
+                .expect("filtered");
         assert_eq!(budget.citations.len(), 2);
 
         let sheets =
@@ -8217,7 +8239,11 @@ mod tests {
 
         // Crucially: nothing was written. The editor stays the single writer.
         let body: String = conn
-            .query_row("SELECT body_md FROM documents WHERE id = 'note-1'", [], |r| r.get(0))
+            .query_row(
+                "SELECT body_md FROM documents WHERE id = 'note-1'",
+                [],
+                |r| r.get(0),
+            )
             .expect("body");
         assert_eq!(body, "old body");
 
@@ -8253,7 +8279,10 @@ mod tests {
 
         // oldText comes back resolved to the note's VERBATIM text (curly punctuation
         // intact), so the apply step needs only an exact match.
-        assert_eq!(output.tool_call.input["edits"][0]["oldText"], "He said “hi” — ok.");
+        assert_eq!(
+            output.tool_call.input["edits"][0]["oldText"],
+            "He said “hi” — ok."
+        );
         // `content` is the resulting full text, for the preview.
         assert_eq!(
             output.tool_call.input["content"],
@@ -8261,7 +8290,11 @@ mod tests {
         );
         // Still no write.
         let body: String = conn
-            .query_row("SELECT body_md FROM documents WHERE id = 'note-1'", [], |r| r.get(0))
+            .query_row(
+                "SELECT body_md FROM documents WHERE id = 'note-1'",
+                [],
+                |r| r.get(0),
+            )
             .expect("body");
         assert!(body.contains("He said “hi” — ok."));
 
@@ -9411,7 +9444,8 @@ mod tests {
         let conn = setup_cross_doc_conn();
         insert_cross_doc_chunk(&conn, "primary", "p1", "primary doc mentions apples");
         insert_cross_doc_chunk(&conn, "ref-1", "r1", "reference doc mentions apples too");
-        let args = serde_json::json!({ "query": "apples", "mode": "literal", "documentId": "ref-1" });
+        let args =
+            serde_json::json!({ "query": "apples", "mode": "literal", "documentId": "ref-1" });
         let out = execute_rag_tool_call_for_capabilities(
             &conn,
             "primary",
@@ -9431,7 +9465,8 @@ mod tests {
         insert_cross_doc_chunk(&conn, "primary", "p1", "primary doc mentions apples");
         insert_cross_doc_chunk(&conn, "evil", "e1", "evil doc mentions apples");
         // "evil" is not in the whitelist -> dispatch must fall back to the primary doc.
-        let args = serde_json::json!({ "query": "apples", "mode": "literal", "documentId": "evil" });
+        let args =
+            serde_json::json!({ "query": "apples", "mode": "literal", "documentId": "evil" });
         let out = execute_rag_tool_call_for_capabilities(
             &conn,
             "primary",
@@ -9483,9 +9518,16 @@ mod tests {
         // Focus leads and is tagged; @-referenced doc is tagged.
         assert_eq!(manifest.entries[0].document_id, "focus");
         assert!(manifest.entries[0].is_focus);
-        assert!(manifest.entries.iter().any(|e| e.document_id == "ref" && e.is_referenced));
+        assert!(manifest
+            .entries
+            .iter()
+            .any(|e| e.document_id == "ref" && e.is_referenced));
         // The relevant doc outranks the unrelated one and got a summary.
-        let hit = manifest.entries.iter().find(|e| e.document_id == "hit").expect("hit");
+        let hit = manifest
+            .entries
+            .iter()
+            .find(|e| e.document_id == "hit")
+            .expect("hit");
         assert!(hit.summary.contains("attention"));
         assert_eq!(hit.rel_dir, "c");
         let prompt = manifest.to_prompt_block();
@@ -9529,12 +9571,14 @@ mod tests {
         .expect("seed");
 
         // Topical search: the relevant doc ranks first; the non-indexed doc is gone.
-        let hits = search_workspace_documents(&conn, "transformer attention", 10, &[]).expect("search");
+        let hits =
+            search_workspace_documents(&conn, "transformer attention", 10, &[]).expect("search");
         assert_eq!(hits[0].document_id, "hit");
         assert!(hits.iter().all(|hit| hit.document_id != "pending"));
 
         // `exclude` removes already-pinned docs.
-        let excluded = search_workspace_documents(&conn, "transformer", 10, &["hit"]).expect("search");
+        let excluded =
+            search_workspace_documents(&conn, "transformer", 10, &["hit"]).expect("search");
         assert!(excluded.iter().all(|hit| hit.document_id != "hit"));
 
         // Empty query = browse by recency (most recently opened first).
@@ -9666,8 +9710,22 @@ mod tests {
     #[test]
     fn recall_chat_history_keyword_ranks_by_term_overlap() {
         let conn = setup_chat_history_conn();
-        insert_chat_turn(&conn, "t1", "doc", "we discussed pruning", "the pruning method", 1);
-        insert_chat_turn(&conn, "t2", "doc", "unrelated weather chat", "sunny today", 2);
+        insert_chat_turn(
+            &conn,
+            "t1",
+            "doc",
+            "we discussed pruning",
+            "the pruning method",
+            1,
+        );
+        insert_chat_turn(
+            &conn,
+            "t2",
+            "doc",
+            "unrelated weather chat",
+            "sunny today",
+            2,
+        );
         let hits = recall_chat_history(&conn, "doc", "pruning method", false, 5).expect("recall");
         // The matching turn ranks first; non-matching turns degrade to recent (no
         // longer filtered out, so the agent still gets a fallback instead of empty).
@@ -9680,7 +9738,14 @@ mod tests {
         // Stored turn uses "剪枝方法"; the query rewords it as "模型剪枝的方法".
         // Han chars aren't split by query_terms, so single-char CJK overlap must
         // still rank the relevant turn above an unrelated one.
-        insert_chat_turn(&conn, "t1", "doc", "请解释剪枝方法", "剪枝方法是一种压缩技术", 1);
+        insert_chat_turn(
+            &conn,
+            "t1",
+            "doc",
+            "请解释剪枝方法",
+            "剪枝方法是一种压缩技术",
+            1,
+        );
         insert_chat_turn(&conn, "t2", "doc", "今天天气怎么样", "晴天", 2);
         let hits = recall_chat_history(&conn, "doc", "模型剪枝的方法", false, 5).expect("recall");
         assert_eq!(hits[0].block_id, "t1");
@@ -9700,7 +9765,14 @@ mod tests {
             1,
             crate::CURRENT_INDEX_VERSION - 1,
         );
-        insert_chat_turn(&conn, "fresh", "doc", "new pruning question", "new answer", 2);
+        insert_chat_turn(
+            &conn,
+            "fresh",
+            "doc",
+            "new pruning question",
+            "new answer",
+            2,
+        );
         let hits = recall_chat_history(&conn, "doc", "pruning", false, 5).expect("recall");
         assert!(hits.iter().all(|h| h.block_id != "stale"));
         assert!(hits.iter().any(|h| h.block_id == "fresh"));
@@ -9709,7 +9781,14 @@ mod tests {
     #[test]
     fn recall_chat_history_literal_matches_exact_substring() {
         let conn = setup_chat_history_conn();
-        insert_chat_turn(&conn, "t1", "doc", "what is the F1-score", "the F1-score is 0.9", 1);
+        insert_chat_turn(
+            &conn,
+            "t1",
+            "doc",
+            "what is the F1-score",
+            "the F1-score is 0.9",
+            1,
+        );
         insert_chat_turn(&conn, "t2", "doc", "general question", "general answer", 2);
         let hits = recall_chat_history(&conn, "doc", "f1-score", true, 5).expect("recall");
         assert_eq!(hits.len(), 1);

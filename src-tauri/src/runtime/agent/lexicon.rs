@@ -187,10 +187,7 @@ mod tests {
 
     #[test]
     fn roman_form_a_matches() {
-        assert_eq!(
-            requested_table_number("Table VI latency"),
-            Some("6".into())
-        );
+        assert_eq!(requested_table_number("Table VI latency"), Some("6".into()));
     }
 
     #[test]

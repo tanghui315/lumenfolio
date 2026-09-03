@@ -89,7 +89,8 @@ fn exa_search(api_key: &str, query: &str, limit: usize) -> Result<Vec<WebHit>, S
                 text.chars().take(300).collect::<String>()
             ));
         }
-        serde_json::from_str::<serde_json::Value>(&text).map_err(|err| format!("Exa decode failed: {err}"))
+        serde_json::from_str::<serde_json::Value>(&text)
+            .map_err(|err| format!("Exa decode failed: {err}"))
     })?;
     let results = value
         .get("results")

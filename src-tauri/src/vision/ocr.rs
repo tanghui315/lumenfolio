@@ -407,7 +407,12 @@ mod onnx {
         ort::session::Session::builder()
             .map_err(|err| format!("Failed to create {label} ONNX session builder: {err}"))?
             .commit_from_file(path)
-            .map_err(|err| format!("Failed to load {label} ONNX model {}: {err}", path.display()))
+            .map_err(|err| {
+                format!(
+                    "Failed to load {label} ONNX model {}: {err}",
+                    path.display()
+                )
+            })
     }
 
     pub(super) fn crop_box(image: &RgbImage, b: &DetBox) -> RgbImage {
@@ -452,7 +457,9 @@ mod onnx {
                 vec![1i64, 3, pad_h as i64, pad_w as i64],
                 data
             ))
-            .map_err(|err| format!("Failed to build OCR det tensor: {err}"))?])
+            .map_err(|err| format!(
+                "Failed to build OCR det tensor: {err}"
+            ))?])
             .map_err(|err| format!("OCR det inference failed: {err}"))?;
         let (_, value) = outputs
             .into_iter()
@@ -500,7 +507,9 @@ mod onnx {
                 vec![1i64, 3, target_h as i64, target_w as i64],
                 data
             ))
-            .map_err(|err| format!("Failed to build OCR rec tensor: {err}"))?])
+            .map_err(|err| format!(
+                "Failed to build OCR rec tensor: {err}"
+            ))?])
             .map_err(|err| format!("OCR rec inference failed: {err}"))?;
         let (_, value) = outputs
             .into_iter()
@@ -538,10 +547,10 @@ mod tests {
         // steps (argmax): h, h, blank, i  -> "hi"
         // logits row-major [step][class], make the intended class dominate.
         let rows: [[f32; 3]; 4] = [
-            [0.1, 0.8, 0.1], // h
-            [0.1, 0.7, 0.2], // h (repeat -> collapsed)
+            [0.1, 0.8, 0.1],   // h
+            [0.1, 0.7, 0.2],   // h (repeat -> collapsed)
             [0.9, 0.05, 0.05], // blank (dropped)
-            [0.1, 0.2, 0.7], // i
+            [0.1, 0.2, 0.7],   // i
         ];
         let logits: Vec<f32> = rows.iter().flatten().copied().collect();
         let (text, conf) = ctc_greedy_decode(&logits, 4, 3, &charset);
@@ -595,7 +604,7 @@ mod tests {
         let h = 6;
         let mut prob = vec![0.0f32; w * h];
         prob[0] = 0.9; // single pixel -> too small with min_box_side=2
-        // a low-prob 3x3 region (mean below box_thresh)
+                       // a low-prob 3x3 region (mean below box_thresh)
         for y in 2..5 {
             for x in 2..5 {
                 prob[y * w + x] = 0.35; // above bin 0.3 but mean < box_thresh 0.5
@@ -607,12 +616,22 @@ mod tests {
 
     #[test]
     fn unclip_expands_and_clamps() {
-        let b = DetBox { x0: 10.0, y0: 10.0, x1: 30.0, y1: 14.0 };
+        let b = DetBox {
+            x0: 10.0,
+            y0: 10.0,
+            x1: 30.0,
+            y1: 14.0,
+        };
         let u = unclip_box(&b, 1.5, 100.0, 100.0);
         assert!(u.x0 < b.x0 && u.y0 < b.y0);
         assert!(u.x1 > b.x1 && u.y1 > b.y1);
         // clamp: a box at the edge cannot go negative
-        let edge = DetBox { x0: 0.0, y0: 0.0, x1: 5.0, y1: 5.0 };
+        let edge = DetBox {
+            x0: 0.0,
+            y0: 0.0,
+            x1: 5.0,
+            y1: 5.0,
+        };
         let ue = unclip_box(&edge, 5.0, 100.0, 100.0);
         assert_eq!(ue.x0, 0.0);
         assert_eq!(ue.y0, 0.0);
@@ -648,17 +667,30 @@ mod tests {
                 line.confidence, line.bbox[0], line.bbox[1], line.bbox[2], line.bbox[3], line.text
             );
         }
-        assert!(!lines.is_empty(), "expected OCR to recover at least one line");
+        assert!(
+            !lines.is_empty(),
+            "expected OCR to recover at least one line"
+        );
     }
 
     #[test]
     fn normalized_bbox_scales_and_clamps() {
         // det-input box at 2x downscale of a 200x100 original.
-        let b = DetBox { x0: 0.0, y0: 0.0, x1: 50.0, y1: 25.0 };
+        let b = DetBox {
+            x0: 0.0,
+            y0: 0.0,
+            x1: 50.0,
+            y1: 25.0,
+        };
         let bbox = det_box_to_normalized_bbox(&b, 2.0, 2.0, 200.0, 100.0);
         assert_eq!(bbox, [0.0, 0.0, 0.5, 0.5]);
         // out-of-range stays clamped to 1.0
-        let big = DetBox { x0: 0.0, y0: 0.0, x1: 1000.0, y1: 1000.0 };
+        let big = DetBox {
+            x0: 0.0,
+            y0: 0.0,
+            x1: 1000.0,
+            y1: 1000.0,
+        };
         let bbox2 = det_box_to_normalized_bbox(&big, 2.0, 2.0, 200.0, 100.0);
         assert_eq!(bbox2, [0.0, 0.0, 1.0, 1.0]);
     }

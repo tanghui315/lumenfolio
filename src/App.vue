@@ -2087,6 +2087,8 @@ function selectDoc(docId) {
   // Selecting a document leaves the Trending feed / knowledge graph.
   trendingView.value = false
   graphView.value = false
+  const doc = allDocs.value.find((item) => item.id === docId)
+  if (doc) selectedCollectionId.value = doc.collectionId ?? null
   openTab(docId)
   // Explicit selection (sidebar / tab) retargets the active conversation's focus
   // to the chosen document, so "Focus" tracks what you're reading. Citation jumps
@@ -5694,7 +5696,6 @@ onMounted(() => {
       :roots="workspace.roots"
       :collections="collections"
       :documents="allDocs"
-      :selected-collection-id="selectedCollectionId"
       :home-active="conversationCentered"
       :selected-doc-id="selectedDocId"
       :selected-doc="selectedDocument"

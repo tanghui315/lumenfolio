@@ -138,7 +138,13 @@ pub(crate) async fn run_unified_agent_loop(
     let char_budget = history_char_budget(&agent_run.retrieval_run.context_budget);
 
     for round in 0..max_rounds {
-        compact_history(ctx.app, ctx.activity_event_id, agent_run, &mut messages, char_budget);
+        compact_history(
+            ctx.app,
+            ctx.activity_event_id,
+            agent_run,
+            &mut messages,
+            char_budget,
+        );
         let request = serde_json::json!({
             "model": ctx.provider.model,
             "messages": messages,
@@ -149,9 +155,15 @@ pub(crate) async fn run_unified_agent_loop(
             "tools": tools,
             "tool_choice": "auto",
         });
-        let round_result =
-            stream_tool_round(&client, &endpoint, ctx.provider, &request, ctx.app, ctx.activity_event_id)
-                .await?;
+        let round_result = stream_tool_round(
+            &client,
+            &endpoint,
+            ctx.provider,
+            &request,
+            ctx.app,
+            ctx.activity_event_id,
+        )
+        .await?;
         let content_str = round_result.content.clone();
         let reasoning_str = round_result.reasoning.clone();
         // Reassemble streamed tool-call fragments into the loop's tool-call shape,
@@ -196,8 +208,13 @@ pub(crate) async fn run_unified_agent_loop(
                         );
                         serde_json::json!({})
                     });
-                let rendered =
-                    run_one_tool(&ctx, agent_run, rag_capabilities, &call.function.name, &args)?;
+                let rendered = run_one_tool(
+                    &ctx,
+                    agent_run,
+                    rag_capabilities,
+                    &call.function.name,
+                    &args,
+                )?;
                 messages.push(tool_result_message(&call.id, &rendered));
             }
             continue;
@@ -245,7 +262,13 @@ pub(crate) async fn run_unified_agent_loop(
 
     // Round cap reached while the model still wanted tools — force a final answer
     // (no tools offered) so it commits to prose instead of looping forever.
-    compact_history(ctx.app, ctx.activity_event_id, agent_run, &mut messages, char_budget);
+    compact_history(
+        ctx.app,
+        ctx.activity_event_id,
+        agent_run,
+        &mut messages,
+        char_budget,
+    );
     let (content, reasoning, emitted_answer) =
         force_final_answer(&ctx, &client, &endpoint, &messages).await?;
     build_unified_answer(&ctx, agent_run, &content, &reasoning, emitted_answer)
@@ -343,7 +366,10 @@ fn run_one_tool(
         {
             Some(period) => {
                 let mut obj = args.as_object().cloned().unwrap_or_default();
-                obj.insert("period".to_string(), serde_json::Value::String(period.to_string()));
+                obj.insert(
+                    "period".to_string(),
+                    serde_json::Value::String(period.to_string()),
+                );
                 injected_args = serde_json::Value::Object(obj);
                 &injected_args
             }
@@ -528,7 +554,9 @@ fn compact_messages_to_budget(messages: &mut [serde_json::Value], char_budget: u
         if !is_tool {
             continue;
         }
-        let already_elided = messages[index].get("content").and_then(|value| value.as_str())
+        let already_elided = messages[index]
+            .get("content")
+            .and_then(|value| value.as_str())
             == Some(ELIDED_TOOL_RESULT);
         if already_elided {
             continue;
@@ -626,7 +654,8 @@ fn execute_library_tool(
         .and_then(|value| value.as_str())
         .map(str::trim)
         .unwrap_or("");
-    let hits = runtime::rag::search_workspace_documents(conn, query, limit, &[]).unwrap_or_default();
+    let hits =
+        runtime::rag::search_workspace_documents(conn, query, limit, &[]).unwrap_or_default();
     if hits.is_empty() {
         return (format!("{tool} found no documents in the library."), 0);
     }
@@ -701,9 +730,8 @@ When you have enough evidence, stop calling tools and reply with a structured Ma
     }
     let seed_evidence = agent_run.retrieval_run.prompt_context.trim();
     if !seed_evidence.is_empty() {
-        context.push_str(
-            "Initial evidence already gathered (you may rely on it or retrieve more):\n",
-        );
+        context
+            .push_str("Initial evidence already gathered (you may rely on it or retrieve more):\n");
         context.push_str(seed_evidence);
         context.push_str("\n\n");
     }
@@ -890,8 +918,10 @@ fn build_unified_answer(
 
     let claims =
         llm::claims::fallback_claims_from_answer(&answer, &agent_run.retrieval_run.citations);
-    let answer =
-        llm::claims::strip_known_inline_citation_labels(&answer, &agent_run.retrieval_run.citations);
+    let answer = llm::claims::strip_known_inline_citation_labels(
+        &answer,
+        &agent_run.retrieval_run.citations,
+    );
 
     // If the answer round streamed live, its deltas already painted the bubble —
     // re-emitting the whole answer here would duplicate it. Only push the one-shot
@@ -932,9 +962,15 @@ async fn force_final_answer(
         "temperature": 0.2,
         "stream": true,
     });
-    let round =
-        stream_tool_round(client, endpoint, ctx.provider, &request, ctx.app, ctx.activity_event_id)
-            .await?;
+    let round = stream_tool_round(
+        client,
+        endpoint,
+        ctx.provider,
+        &request,
+        ctx.app,
+        ctx.activity_event_id,
+    )
+    .await?;
     Ok((round.content, round.reasoning, round.emitted_answer))
 }
 
@@ -1080,12 +1116,16 @@ mod tests {
                 arguments: "{\"query\":\"x\"}".to_string(),
             },
         }];
-        let message = assistant_tool_call_message(&serde_json::Value::String("  ".to_string()), &calls);
+        let message =
+            assistant_tool_call_message(&serde_json::Value::String("  ".to_string()), &calls);
         assert_eq!(message["role"], "assistant");
         assert!(message["content"].is_null());
         assert_eq!(message["tool_calls"][0]["id"], "call_1");
         assert_eq!(message["tool_calls"][0]["type"], "function");
-        assert_eq!(message["tool_calls"][0]["function"]["name"], "search_chunks");
+        assert_eq!(
+            message["tool_calls"][0]["function"]["name"],
+            "search_chunks"
+        );
         assert_eq!(
             message["tool_calls"][0]["function"]["arguments"],
             "{\"query\":\"x\"}"
@@ -1109,7 +1149,7 @@ mod tests {
         assert_eq!(calls[0].name, "search_chunks");
         assert_eq!(calls[0].args["query"], "DR Tulu results");
         assert_eq!(calls[0].args["limit"], 5); // string="false" -> JSON number
-        // Normal prose yields no tool calls.
+                                               // Normal prose yields no tool calls.
         assert!(parse_dsml_tool_calls("This is a normal answer with no markup.").is_empty());
     }
 
@@ -1180,7 +1220,8 @@ mod tests {
 
     #[test]
     fn history_char_budget_reserves_output_and_has_floor() {
-        let budget = crate::model_catalog::ModelContextBudget::from_model_limits(32_000, 4_000, "t");
+        let budget =
+            crate::model_catalog::ModelContextBudget::from_model_limits(32_000, 4_000, "t");
         let chars = history_char_budget(&budget);
         assert!(chars >= MIN_HISTORY_CHARS);
         assert!(chars < 32_000 * CHARS_PER_TOKEN);

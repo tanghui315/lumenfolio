@@ -128,7 +128,10 @@ pub fn resolve_edit_target(body: &str, old_text: &str) -> Result<String, String>
 /// Resolve and apply every edit to `body`, returning the new text and the resolved
 /// edits. Applied to an in-memory copy and validated as a set: if any edit fails,
 /// the whole call fails and the caller is left with nothing half-applied.
-pub fn apply_edits(body: &str, edits: &[NoteEdit]) -> Result<(String, Vec<ResolvedNoteEdit>), String> {
+pub fn apply_edits(
+    body: &str,
+    edits: &[NoteEdit],
+) -> Result<(String, Vec<ResolvedNoteEdit>), String> {
     if edits.is_empty() {
         return Err("edits cannot be empty".to_string());
     }
@@ -196,7 +199,10 @@ mod tests {
     #[test]
     fn exact_unique_match_resolves() {
         let body = "# Title\n\nalpha beta\n\ngamma\n";
-        assert_eq!(resolve_edit_target(body, "alpha beta").unwrap(), "alpha beta");
+        assert_eq!(
+            resolve_edit_target(body, "alpha beta").unwrap(),
+            "alpha beta"
+        );
     }
 
     #[test]
@@ -240,7 +246,10 @@ mod tests {
         // whitespace-insensitive, or an edit could silently drop them.
         let body = "line one  \nline two\n";
         assert!(resolve_edit_target(body, "line one\nline two").is_err());
-        assert_eq!(resolve_edit_target(body, "line one  \nline two").unwrap(), "line one  \nline two");
+        assert_eq!(
+            resolve_edit_target(body, "line one  \nline two").unwrap(),
+            "line one  \nline two"
+        );
     }
 
     #[test]

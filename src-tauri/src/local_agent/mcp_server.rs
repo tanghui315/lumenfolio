@@ -188,11 +188,7 @@ impl ServerHandler for LumenfolioMcpServer {
         let tools = rag::rag_tool_specs_for_capabilities(false, self.web_enabled_for_scope())
             .into_iter()
             .map(|spec| {
-                let schema = spec
-                    .input_schema
-                    .as_object()
-                    .cloned()
-                    .unwrap_or_default();
+                let schema = spec.input_schema.as_object().cloned().unwrap_or_default();
                 Tool::new(spec.name, spec.description, Arc::new(schema))
             })
             .collect();
@@ -357,7 +353,11 @@ impl Drop for RunningMcpServer {
 
 pub(crate) fn random_token() -> String {
     // 128-bit loopback bearer; rand is already in the tree via rmcp.
-    format!("{:016x}{:016x}", rand::random::<u64>(), rand::random::<u64>())
+    format!(
+        "{:016x}{:016x}",
+        rand::random::<u64>(),
+        rand::random::<u64>()
+    )
 }
 
 fn unauthorized() -> hyper::Response<BoxBody<Bytes, std::convert::Infallible>> {
@@ -452,24 +452,26 @@ pub(crate) async fn start_scoped_mcp_server(
             let expected = format!("Bearer {token_for_loop}");
             let io = hyper_util::rt::TokioIo::new(stream);
             tauri::async_runtime::spawn(async move {
-                let hyper_svc = hyper::service::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
-                    let svc = svc.clone();
-                    let expected = expected.clone();
-                    async move {
-                        let ok = req
-                            .headers()
-                            .get(hyper::header::AUTHORIZATION)
-                            .and_then(|v| v.to_str().ok())
-                            .map(|v| v == expected)
-                            .unwrap_or(false);
-                        let resp = if ok {
-                            svc.handle(req).await
-                        } else {
-                            unauthorized()
-                        };
-                        Ok::<_, std::convert::Infallible>(resp)
-                    }
-                });
+                let hyper_svc = hyper::service::service_fn(
+                    move |req: hyper::Request<hyper::body::Incoming>| {
+                        let svc = svc.clone();
+                        let expected = expected.clone();
+                        async move {
+                            let ok = req
+                                .headers()
+                                .get(hyper::header::AUTHORIZATION)
+                                .and_then(|v| v.to_str().ok())
+                                .map(|v| v == expected)
+                                .unwrap_or(false);
+                            let resp = if ok {
+                                svc.handle(req).await
+                            } else {
+                                unauthorized()
+                            };
+                            Ok::<_, std::convert::Infallible>(resp)
+                        }
+                    },
+                );
                 let _ = hyper_util::server::conn::auto::Builder::new(
                     hyper_util::rt::TokioExecutor::new(),
                 )
@@ -593,7 +595,10 @@ mod tests {
     #[test]
     fn read_image_content_handles_valid_missing_and_empty() {
         let dir = std::env::temp_dir();
-        let path = dir.join(format!("lumenfolio-test-{:016x}.png", rand::random::<u64>()));
+        let path = dir.join(format!(
+            "lumenfolio-test-{:016x}.png",
+            rand::random::<u64>()
+        ));
         std::fs::write(&path, [0x89u8, 0x50, 0x4e, 0x47, 0x0d, 0x0a]).unwrap();
         assert!(
             read_image_content(path.to_str().unwrap()).is_some(),
@@ -605,7 +610,10 @@ mod tests {
         assert!(read_image_content(&path.to_string_lossy()).is_none());
 
         // Empty file → None.
-        let empty = dir.join(format!("lumenfolio-empty-{:016x}.png", rand::random::<u64>()));
+        let empty = dir.join(format!(
+            "lumenfolio-empty-{:016x}.png",
+            rand::random::<u64>()
+        ));
         std::fs::write(&empty, []).unwrap();
         assert!(read_image_content(empty.to_str().unwrap()).is_none());
         std::fs::remove_file(&empty).ok();

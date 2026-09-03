@@ -356,29 +356,33 @@ pub(crate) fn clear_pdf_translation_cache(
 }
 
 #[tauri::command]
-pub(crate) fn read_pdf_artifact_bytes(
+pub(crate) async fn read_pdf_artifact_bytes(
     path: String,
     app: AppHandle,
 ) -> Result<tauri::ipc::Response, String> {
-    let paths = paths::Pdf2zhPaths::ensure(&app)?;
-    let artifacts_root = paths
-        .artifacts
-        .canonicalize()
-        .map_err(|err| format!("Failed to resolve artifacts dir: {err}"))?;
-    let target = PathBuf::from(path)
-        .canonicalize()
-        .map_err(|err| format!("Failed to resolve PDF artifact: {err}"))?;
-    if !target.starts_with(&artifacts_root) {
-        return Err("PDF artifact path is outside Lumenfolio managed storage".to_string());
-    }
-    if target.extension().and_then(|ext| ext.to_str()) != Some("pdf") {
-        return Err("PDF artifact is not a PDF file".to_string());
-    }
-    // Return an ArrayBuffer (raw bytes) instead of a JSON number array — see the
-    // note in `read_pdf_bytes`; multi-MB artifacts otherwise block the webview
-    // main thread for seconds while deserializing.
-    let bytes = fs::read(&target).map_err(|err| format!("Failed to read PDF artifact: {err}"))?;
-    Ok(tauri::ipc::Response::new(bytes))
+    crate::run_blocking_io(move || {
+        let paths = paths::Pdf2zhPaths::ensure(&app)?;
+        let artifacts_root = paths
+            .artifacts
+            .canonicalize()
+            .map_err(|err| format!("Failed to resolve artifacts dir: {err}"))?;
+        let target = PathBuf::from(path)
+            .canonicalize()
+            .map_err(|err| format!("Failed to resolve PDF artifact: {err}"))?;
+        if !target.starts_with(&artifacts_root) {
+            return Err("PDF artifact path is outside Lumenfolio managed storage".to_string());
+        }
+        if target.extension().and_then(|ext| ext.to_str()) != Some("pdf") {
+            return Err("PDF artifact is not a PDF file".to_string());
+        }
+        // Return an ArrayBuffer (raw bytes) instead of a JSON number array — see the
+        // note in `read_pdf_bytes`; multi-MB artifacts otherwise block the webview
+        // main thread for seconds while deserializing.
+        let bytes = fs::read(&target)
+            .map_err(|err| crate::map_file_read_error("PDF artifact", &target, err))?;
+        Ok(tauri::ipc::Response::new(bytes))
+    })
+    .await
 }
 
 fn run_pdf_translation_job(

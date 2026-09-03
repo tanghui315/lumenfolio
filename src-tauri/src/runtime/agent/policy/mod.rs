@@ -1065,6 +1065,5 @@ fn asks_document_overview(question: &str, intent: &str) -> bool {
                 || normalized.contains("核心结论")))
 }
 
-
 #[cfg(test)]
 mod tests;

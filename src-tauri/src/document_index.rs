@@ -1254,7 +1254,13 @@ fn register_pptx_visual_assets(
 fn sanitize_component(value: &str) -> String {
     value
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -2226,11 +2232,7 @@ mod tests {
         // the title, and the duplicate (case-insensitive) is dropped.
         assert_eq!(
             extract_wikilinks(body),
-            vec![
-                "Alpha".to_string(),
-                "Beta".to_string(),
-                "skip".to_string(),
-            ]
+            vec!["Alpha".to_string(), "Beta".to_string(), "skip".to_string(),]
         );
     }
 

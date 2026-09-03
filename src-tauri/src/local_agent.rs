@@ -143,7 +143,8 @@ fn detect(kind: AgentKind) -> AgentStatus {
     // Probe via the resolved absolute path when we have it (robust under a minimal
     // PATH); otherwise try the bare name (works when PATH is already complete).
     let invoke = path.clone().unwrap_or_else(|| kind.binary().to_string());
-    let version = run_capture(&invoke, &["--version"], PROBE_TIMEOUT).map(|raw| parse_version(&raw));
+    let version =
+        run_capture(&invoke, &["--version"], PROBE_TIMEOUT).map(|raw| parse_version(&raw));
     let installed = version.is_some() || path.is_some();
     AgentStatus {
         kind,
@@ -316,7 +317,13 @@ fn run_cli(
         }
         // read-only sandbox + no approval; no MCP configured → no tools available.
         AgentKind::Codex => {
-            cmd.args(["exec", "--json", "--skip-git-repo-check", "--sandbox", "read-only"]);
+            cmd.args([
+                "exec",
+                "--json",
+                "--skip-git-repo-check",
+                "--sandbox",
+                "read-only",
+            ]);
             // Prompt MUST precede `-i`: `--image <FILE>...` is multi-value and would
             // otherwise swallow the prompt positional as a second image.
             cmd.arg(prompt);
@@ -410,8 +417,12 @@ fn run_command_timeout(
         }
         std::thread::sleep(Duration::from_millis(80));
     };
-    let stdout = out_rx.recv_timeout(Duration::from_secs(2)).unwrap_or_default();
-    let stderr = err_rx.recv_timeout(Duration::from_secs(2)).unwrap_or_default();
+    let stdout = out_rx
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap_or_default();
+    let stderr = err_rx
+        .recv_timeout(Duration::from_secs(2))
+        .unwrap_or_default();
     Ok(std::process::Output {
         status,
         stdout,
@@ -640,7 +651,10 @@ where
     let binary = resolve_path(kind.binary()).unwrap_or_else(|| kind.binary().to_string());
     // Per-run empty working dir so that — with Codex's OS sandbox necessarily off
     // (it cancels MCP calls otherwise) — there is nothing of the user's to read.
-    let work_dir = std::env::temp_dir().join(format!("lumenfolio-agent-{}", &token[..token.len().min(16)]));
+    let work_dir = std::env::temp_dir().join(format!(
+        "lumenfolio-agent-{}",
+        &token[..token.len().min(16)]
+    ));
     let _ = std::fs::create_dir_all(&work_dir);
     // Codex takes the user's image via `-i`; Claude headless can't. Alive until exit.
     let image = image_data_url
@@ -857,7 +871,10 @@ where
             match msg.get("id").and_then(|i| i.as_i64()) {
                 Some(1) => {
                     // initialize done → ack, then open a thread.
-                    send(&mut stdin, serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}));
+                    send(
+                        &mut stdin,
+                        serde_json::json!({"jsonrpc":"2.0","method":"initialized","params":{}}),
+                    );
                     send(
                         &mut stdin,
                         serde_json::json!({"jsonrpc":"2.0","id":2,"method":"thread/start",
@@ -884,7 +901,9 @@ where
                         }
                         None => {
                             stop(&mut child, reader);
-                            return Err("Codex app-server: thread/start returned no thread id".to_string());
+                            return Err(
+                                "Codex app-server: thread/start returned no thread id".to_string()
+                            );
                         }
                     }
                 }
@@ -897,7 +916,10 @@ where
             // A server→client REQUEST (approval, etc.). With approvalPolicy=never we
             // don't expect these, but answer "approved" defensively so nothing hangs.
             if let Some(id) = msg.get("id") {
-                send(&mut stdin, serde_json::json!({"jsonrpc":"2.0","id":id,"result":{"decision":"approved"}}));
+                send(
+                    &mut stdin,
+                    serde_json::json!({"jsonrpc":"2.0","id":id,"result":{"decision":"approved"}}),
+                );
             }
             continue;
         }
@@ -917,7 +939,9 @@ where
         .filter(|a| !a.is_empty())
         .or_else(|| Some(state.answer.trim().to_string()).filter(|a| !a.is_empty()))
         .ok_or_else(|| {
-            let stderr = err_rx.recv_timeout(Duration::from_secs(1)).unwrap_or_default();
+            let stderr = err_rx
+                .recv_timeout(Duration::from_secs(1))
+                .unwrap_or_default();
             if stderr.trim().is_empty() {
                 format!("{} returned no answer.", AgentKind::Codex.label())
             } else {
@@ -1093,7 +1117,9 @@ where
         .wait()
         .map_err(|err| format!("Local agent did not exit cleanly: {err}"))?;
     if !status.success() {
-        let stderr = err_rx.recv_timeout(Duration::from_secs(1)).unwrap_or_default();
+        let stderr = err_rx
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap_or_default();
         return Err(classify_error(AgentKind::Claude, stderr.trim()));
     }
     // Prefer the authoritative `result` text; fall back to the streamed/assembled text.
@@ -1276,8 +1302,14 @@ mod tests {
 
     #[test]
     fn provider_id_kind_maps_virtual_ids() {
-        assert_eq!(provider_id_kind("local-agent-codex"), Some(AgentKind::Codex));
-        assert_eq!(provider_id_kind("local-agent-claude"), Some(AgentKind::Claude));
+        assert_eq!(
+            provider_id_kind("local-agent-codex"),
+            Some(AgentKind::Codex)
+        );
+        assert_eq!(
+            provider_id_kind("local-agent-claude"),
+            Some(AgentKind::Claude)
+        );
         assert_eq!(provider_id_kind("openai"), None);
         assert_eq!(provider_id_kind(""), None);
     }
@@ -1288,7 +1320,10 @@ mod tests {
 {"type":"turn.started"}
 {"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"The answer."}}
 {"type":"turn.completed","usage":{"output_tokens":5}}"#;
-        assert_eq!(parse_codex_jsonl(AgentKind::Codex, stdout).unwrap(), "The answer.");
+        assert_eq!(
+            parse_codex_jsonl(AgentKind::Codex, stdout).unwrap(),
+            "The answer."
+        );
         assert!(parse_codex_jsonl(AgentKind::Codex, "{}\n").is_err());
     }
 
@@ -1297,7 +1332,8 @@ mod tests {
         let ok = r#"{"type":"result","is_error":false,"result":"  Hello.  "}"#;
         assert_eq!(parse_claude_json(AgentKind::Claude, ok).unwrap(), "Hello.");
         // is_error true + login text → actionable login hint, NOT echoed as answer.
-        let expired = r#"{"type":"result","is_error":true,"result":"API Error: 401 ... Please run /login"}"#;
+        let expired =
+            r#"{"type":"result","is_error":true,"result":"API Error: 401 ... Please run /login"}"#;
         let err = parse_claude_json(AgentKind::Claude, expired).unwrap_err();
         assert!(err.contains("isn't logged in"), "got: {err}");
     }

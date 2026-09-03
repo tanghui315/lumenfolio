@@ -517,9 +517,7 @@ fn location_question_requests_section_when_only_plain_chunk_exists() {
     assert_eq!(next_tool.tool, "open_section");
     assert_eq!(
         next_tool.args["query"],
-        serde_json::json!(
-            "section page location introduced described definition method reference"
-        )
+        serde_json::json!("section page location introduced described definition method reference")
     );
 }
 
@@ -685,7 +683,11 @@ fn figure_gap_in_seed_is_recovered_by_loop() {
     let decision = finalize_citations(
         "What does Figure 2 show?",
         "explain",
-        &[citation("open_pages", Some("Introduction"), "unrelated prose")],
+        &[citation(
+            "open_pages",
+            Some("Introduction"),
+            "unrelated prose",
+        )],
         0,
         8,
     );

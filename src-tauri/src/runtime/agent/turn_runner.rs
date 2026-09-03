@@ -6,8 +6,8 @@ use super::compact::{compact_session, CompactResult};
 use super::context::build_chat_context;
 use super::decision::{FinalizeStatus, RetrievalAttempts};
 use super::ledger::RetrievalLedger;
-use super::policy::{finalize_citations, FinalizeDecision};
 use super::memory::{preview_text, summarize_citations, RecentTurnSummary};
+use super::policy::{finalize_citations, FinalizeDecision};
 use super::protocol::{AgentIntent, AgentStepKind};
 use super::session::AgentSessionStore;
 use super::trace::{
@@ -479,7 +479,6 @@ fn step_kind_for_tool(tool: &str) -> AgentStepKind {
         _ => AgentStepKind::SearchChunks,
     }
 }
-
 
 fn broad_context_query(intent: AgentIntent, attempt: u32) -> &'static str {
     let queries: &[&str] = match intent {

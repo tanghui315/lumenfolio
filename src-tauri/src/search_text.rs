@@ -138,8 +138,11 @@ mod tests {
             "企业知识库升级建设方案",
             "北京理工项目进展 AI For Better Code",
         ] {
-            conn.execute("INSERT INTO t (text) VALUES (?1)", params![index_text(line)])
-                .expect("insert");
+            conn.execute(
+                "INSERT INTO t (text) VALUES (?1)",
+                params![index_text(line)],
+            )
+            .expect("insert");
         }
 
         let hits = |q: &str| -> i64 {
@@ -153,7 +156,11 @@ mod tests {
 
         assert_eq!(hits("知识库"), 1, "mid-run CJK term must match");
         assert_eq!(hits("建设方案"), 1);
-        assert_eq!(hits("北京"), 1, "two-character terms must match (trigram cannot)");
+        assert_eq!(
+            hits("北京"),
+            1,
+            "two-character terms must match (trigram cannot)"
+        );
         assert_eq!(hits("AI"), 1, "two-letter ASCII must still match");
         assert_eq!(hits("Better"), 1);
         assert_eq!(hits("完全不存在的词"), 0);

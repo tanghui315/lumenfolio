@@ -68,8 +68,8 @@ pub(crate) fn office_content_type_for_ext(ext: &str) -> Option<&'static str> {
 
 fn read_zip_entry(path: &Path, entry: &str) -> Result<Option<String>, String> {
     let file = std::fs::File::open(path).map_err(|err| format!("Failed to open file: {err}"))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|err| format!("Not a valid Office (ZIP) file: {err}"))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|err| format!("Not a valid Office (ZIP) file: {err}"))?;
     let mut zf = match archive.by_name(entry) {
         Ok(zf) => zf,
         Err(_) => return Ok(None),
@@ -82,8 +82,8 @@ fn read_zip_entry(path: &Path, entry: &str) -> Result<Option<String>, String> {
 
 fn zip_entry_names(path: &Path) -> Result<Vec<String>, String> {
     let file = std::fs::File::open(path).map_err(|err| format!("Failed to open file: {err}"))?;
-    let archive =
-        zip::ZipArchive::new(file).map_err(|err| format!("Not a valid Office (ZIP) file: {err}"))?;
+    let archive = zip::ZipArchive::new(file)
+        .map_err(|err| format!("Not a valid Office (ZIP) file: {err}"))?;
     Ok(archive.file_names().map(|name| name.to_string()).collect())
 }
 
@@ -274,10 +274,7 @@ fn is_image_entry(entry: &str) -> bool {
 ///
 /// Two kinds of noise are filtered: anything tiny (icons, rules) and anything
 /// that appears on more than half the slides (logos, template furniture).
-pub(crate) fn extract_pptx_media(
-    path: &Path,
-    out_dir: &Path,
-) -> Result<Vec<PptxImage>, String> {
+pub(crate) fn extract_pptx_media(path: &Path, out_dir: &Path) -> Result<Vec<PptxImage>, String> {
     let mut slide_names: Vec<String> = zip_entry_names(path)?
         .into_iter()
         .filter(|name| name.starts_with("ppt/slides/slide") && name.ends_with(".xml"))
@@ -314,8 +311,8 @@ pub(crate) fn extract_pptx_media(
 
     let template_threshold = (slide_count / 2).max(1);
     let file = std::fs::File::open(path).map_err(|err| format!("Failed to open file: {err}"))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|err| format!("Not a valid Office (ZIP) file: {err}"))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|err| format!("Not a valid Office (ZIP) file: {err}"))?;
     let mut written: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut images = Vec::new();
     for (page, entry) in usages {
@@ -338,7 +335,10 @@ pub(crate) fn extract_pptx_media(
                 let out_path = out_dir.join(sanitize_media_name(file_name));
                 if let Some(parent) = out_path.parent() {
                     std::fs::create_dir_all(parent).map_err(|err| {
-                        format!("Failed to create media directory {}: {err}", parent.display())
+                        format!(
+                            "Failed to create media directory {}: {err}",
+                            parent.display()
+                        )
                     })?;
                 }
                 std::fs::write(&out_path, &bytes)
@@ -355,7 +355,13 @@ pub(crate) fn extract_pptx_media(
 
 fn sanitize_media_name(name: &str) -> String {
     name.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect()
 }
 
@@ -575,7 +581,11 @@ fn extract_xlsx(path: &Path) -> Result<Vec<ExtractedBlock>, String> {
                 // a citation to scroll to and highlight that row — the indexed text
                 // ("Region: West | …") deliberately does not match the rendered
                 // cells, so a text search could never find it.
-                blocks.push(ExtractedBlock::new(format!("{name}!{row_no} · {record}"), "body", 0));
+                blocks.push(ExtractedBlock::new(
+                    format!("{name}!{row_no} · {record}"),
+                    "body",
+                    0,
+                ));
             }
         }
         // One block of formulas per sheet, so "how is the total computed?" is
@@ -615,7 +625,11 @@ fn xlsx_record(header: &[String], row: &[Data]) -> Option<String> {
             if value.is_empty() {
                 return None;
             }
-            match header.get(col).map(String::as_str).filter(|h| !h.is_empty()) {
+            match header
+                .get(col)
+                .map(String::as_str)
+                .filter(|h| !h.is_empty())
+            {
                 Some(key) => Some(format!("{key}: {value}")),
                 None => Some(value),
             }
@@ -707,7 +721,9 @@ pub(crate) fn read_xlsx_markdown(
             continue;
         };
         let (height, width) = (range.height(), range.width());
-        out.push_str(&format!("### Sheet: {name} ({height} rows × {width} cols)\n\n"));
+        out.push_str(&format!(
+            "### Sheet: {name} ({height} rows × {width} cols)\n\n"
+        ));
         if width == 0 || height == 0 {
             out.push_str("_(empty)_\n\n");
             continue;
@@ -780,7 +796,9 @@ fn cell_to_string(cell: &Data) -> String {
             .as_datetime()
             .map(|ndt| {
                 let text = ndt.format("%Y-%m-%d %H:%M").to_string();
-                text.strip_suffix(" 00:00").map(str::to_string).unwrap_or(text)
+                text.strip_suffix(" 00:00")
+                    .map(str::to_string)
+                    .unwrap_or(text)
             })
             .unwrap_or_else(|| dt.as_f64().to_string()),
         Data::DateTimeIso(s) => s.clone(),
@@ -905,9 +923,11 @@ mod tests {
     fn xlsx_datetime_renders_a_calendar_date_not_the_serial() {
         // Serial 44484 in the 1900 date system is 2021-10-15; the old Display path
         // printed "44484". A midnight time is dropped; a real time is kept.
-        let date = calamine::ExcelDateTime::new(44484.0, calamine::ExcelDateTimeType::DateTime, false);
+        let date =
+            calamine::ExcelDateTime::new(44484.0, calamine::ExcelDateTimeType::DateTime, false);
         assert_eq!(cell_to_string(&Data::DateTime(date)), "2021-10-15");
-        let stamp = calamine::ExcelDateTime::new(44484.5, calamine::ExcelDateTimeType::DateTime, false);
+        let stamp =
+            calamine::ExcelDateTime::new(44484.5, calamine::ExcelDateTimeType::DateTime, false);
         assert_eq!(cell_to_string(&Data::DateTime(stamp)), "2021-10-15 12:00");
     }
 
@@ -1087,6 +1107,9 @@ mod tests {
     fn parse_pptx_slide_collects_text_runs_per_paragraph() {
         let xml = r#"<p:sld xmlns:a="x"><a:p><a:r><a:t>Hello </a:t></a:r><a:r><a:t>world</a:t></a:r></a:p><a:p><a:t>Second</a:t></a:p></p:sld>"#;
         let paragraphs = parse_pptx_slide(xml).expect("parse");
-        assert_eq!(paragraphs, vec!["Hello world".to_string(), "Second".to_string()]);
+        assert_eq!(
+            paragraphs,
+            vec!["Hello world".to_string(), "Second".to_string()]
+        );
     }
 }

@@ -65,11 +65,8 @@ pub(crate) async fn improve_retrieval_with_llm_judge(
         llm_judge_budget(max_steps, attempt);
     // Inherit the M3 loop's "already attempted" set so the LLM judge never
     // re-requests a tool the rule loop already ran this turn.
-    let mut attempted_tools: HashSet<String> = agent_run
-        .ledger
-        .attempted_signatures()
-        .cloned()
-        .collect();
+    let mut attempted_tools: HashSet<String> =
+        agent_run.ledger.attempted_signatures().cloned().collect();
     let mut tool_feedback = Vec::new();
     // Tell the judge up front which regions the M3 loop already examined, so it
     // can reason about coverage instead of re-requesting them.
@@ -1282,7 +1279,6 @@ pub(super) fn question_needs_table_evidence(question: &str) -> bool {
 pub(super) fn requested_table_number(question: &str) -> Option<String> {
     lexicon::requested_table_number(question)
 }
-
 
 fn no_gain_tool_feedback(
     call: &llm::chat::LlmRagToolCall,

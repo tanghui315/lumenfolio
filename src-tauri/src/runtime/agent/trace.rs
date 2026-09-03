@@ -283,15 +283,8 @@ pub fn tool_call_event(
     detail: impl Into<String>,
 ) -> AgentTraceEvent {
     let tool = tool.into();
-    AgentTraceEvent::new(
-        "tool_call",
-        tool.clone(),
-        "running",
-        title,
-        reason,
-        detail,
-    )
-    .with_tool(tool, args)
+    AgentTraceEvent::new("tool_call", tool.clone(), "running", title, reason, detail)
+        .with_tool(tool, args)
 }
 
 /// Construct a uniform "tool_result" trace event populated from a RAG tool

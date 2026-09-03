@@ -63,7 +63,11 @@ impl ThinkSplitter {
         let mut answer = String::new();
         let mut reasoning = String::new();
         loop {
-            let needle = if self.inside_think { THINK_CLOSE } else { THINK_OPEN };
+            let needle = if self.inside_think {
+                THINK_CLOSE
+            } else {
+                THINK_OPEN
+            };
             if let Some(pos) = buf.find(needle) {
                 let before = &buf[..pos];
                 if self.inside_think {
@@ -545,9 +549,7 @@ pub(crate) async fn read_unified_tool_round_stream(
         } else {
             response.chunk().await
         };
-        let Some(chunk) =
-            next.map_err(|err| format!("Failed to read agent stream: {err}"))?
-        else {
+        let Some(chunk) = next.map_err(|err| format!("Failed to read agent stream: {err}"))? else {
             break;
         };
         buffer.extend_from_slice(&chunk);
@@ -711,7 +713,10 @@ fn drain_unified_stream_tail(
                 acc.tool_call_seen = true;
                 acc.tool_calls.push(UnifiedStreamToolCall {
                     id: call["id"].as_str().unwrap_or_default().to_string(),
-                    name: call["function"]["name"].as_str().unwrap_or_default().to_string(),
+                    name: call["function"]["name"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_string(),
                     arguments: call["function"]["arguments"]
                         .as_str()
                         .unwrap_or_default()

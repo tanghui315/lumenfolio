@@ -344,8 +344,7 @@ fn reorder_rows(
         .map_err(|err| format!("Failed to commit reorder: {err}"))
 }
 
-const REORDER_DOCUMENTS_SQL: &str =
-    "UPDATE documents SET position = ?2, updated_at = unixepoch()
+const REORDER_DOCUMENTS_SQL: &str = "UPDATE documents SET position = ?2, updated_at = unixepoch()
      WHERE id = ?1 AND collection_id IS ?3";
 const REORDER_COLLECTIONS_SQL: &str =
     "UPDATE collections SET position = ?2, updated_at = unixepoch()
@@ -463,9 +462,11 @@ mod tests {
         )
         .unwrap();
         let x_collection: String = conn
-            .query_row("SELECT collection_id FROM documents WHERE id = 'x'", [], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT collection_id FROM documents WHERE id = 'x'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(x_collection, "c2");
         // b and a were renumbered by their index in the list (0 and 2); x's slot (1)
@@ -492,7 +493,13 @@ mod tests {
                 ('a', NULL, 0), ('b', NULL, 1);",
         )
         .unwrap();
-        reorder_rows(&mut conn, REORDER_DOCUMENTS_SQL, None, &["b".into(), "a".into()]).unwrap();
+        reorder_rows(
+            &mut conn,
+            REORDER_DOCUMENTS_SQL,
+            None,
+            &["b".into(), "a".into()],
+        )
+        .unwrap();
         assert_eq!(
             positions(&conn, true),
             vec![("b".into(), 0), ("a".into(), 1)]

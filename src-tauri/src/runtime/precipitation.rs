@@ -247,7 +247,10 @@ fn store_artifacts(
         .map_err(|err| format!("Failed to store summary: {err}"))?;
     }
 
-    let mut insert_items = |kind: &str, items: &[ExtractItem], cap: usize| -> Result<usize, String> {
+    let mut insert_items = |kind: &str,
+                            items: &[ExtractItem],
+                            cap: usize|
+     -> Result<usize, String> {
         let mut count = 0usize;
         for (index, item) in items.iter().take(cap).enumerate() {
             let name = item.name.trim();
@@ -490,7 +493,11 @@ fn singularize_token(token: &str) -> String {
             return format!("{stem}{}", &suffix[..suffix.len() - 2]);
         }
     }
-    if token.ends_with("ss") || token.ends_with("us") || token.ends_with("is") || token.ends_with("os") {
+    if token.ends_with("ss")
+        || token.ends_with("us")
+        || token.ends_with("is")
+        || token.ends_with("os")
+    {
         return token.to_string();
     }
     if let Some(stem) = token.strip_suffix('s') {
@@ -885,13 +892,19 @@ mod tests {
 
     #[test]
     fn normalize_key_lowercases_and_collapses() {
-        assert_eq!(normalize_key("  Denitrifying   Bacteria "), "denitrifying bacteria");
+        assert_eq!(
+            normalize_key("  Denitrifying   Bacteria "),
+            "denitrifying bacteria"
+        );
     }
 
     #[test]
     fn normalize_key_merges_aliases() {
         // hyphen/underscore separators, plurals, edge punctuation all collapse.
-        assert_eq!(normalize_key("Neural-Networks"), normalize_key("neural networks"));
+        assert_eq!(
+            normalize_key("Neural-Networks"),
+            normalize_key("neural networks")
+        );
         assert_eq!(normalize_key("Models"), "model");
         assert_eq!(normalize_key("Batches"), "batch");
         assert_eq!(normalize_key("Strategies"), "strategy");

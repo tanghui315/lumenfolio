@@ -958,7 +958,12 @@ fn migrate_fts_cjk_segmentation(conn: &Connection) -> Result<(), String> {
             conn.execute(
                 "INSERT INTO document_table_facts_fts (fact_id, document_id, table_id, text)
                  VALUES (?1, ?2, ?3, ?4)",
-                params![id, document_id, table_id, crate::search_text::index_text(text)],
+                params![
+                    id,
+                    document_id,
+                    table_id,
+                    crate::search_text::index_text(text)
+                ],
             )
             .map_err(|err| format!("Failed to rebuild table-fact FTS: {err}"))?;
         }
@@ -1156,9 +1161,9 @@ fn chat_turns_document_fk_is_cascade(conn: &Connection) -> Result<bool, String> 
         .map_err(|err| format!("Failed to read chat_turns foreign keys: {err}"))?
         .collect::<Result<Vec<(String, String)>, _>>()
         .map_err(|err| format!("Failed to read chat_turns foreign keys: {err}"))?;
-    Ok(rows
-        .iter()
-        .any(|(from, on_delete)| from == "document_id" && on_delete.eq_ignore_ascii_case("CASCADE")))
+    Ok(rows.iter().any(|(from, on_delete)| {
+        from == "document_id" && on_delete.eq_ignore_ascii_case("CASCADE")
+    }))
 }
 
 /// Decouple chat history from document lifetime: rebuild `chat_turns` so its
@@ -1506,7 +1511,11 @@ mod tests {
         // (NULL document_id) turn can be inserted.
         assert!(!column_is_not_null(&conn, "chat_turns", "document_id").unwrap());
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM chat_turns WHERE id = 'turn-1'", [], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM chat_turns WHERE id = 'turn-1'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(count, 1);
         conn.execute(
@@ -1561,14 +1570,19 @@ mod tests {
         // FK is now SET NULL, and the pre-existing turn survived the rebuild.
         assert!(!chat_turns_document_fk_is_cascade(&conn).unwrap());
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM chat_turns WHERE id = 'turn-1'", [], |r| r.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM chat_turns WHERE id = 'turn-1'",
+                [],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(count, 1);
 
         // Deleting the document keeps the conversation: the turn stays, and its
         // document_id is nulled (it becomes a library-wide turn).
         conn.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
-        conn.execute("DELETE FROM documents WHERE id = 'doc-1'", []).unwrap();
+        conn.execute("DELETE FROM documents WHERE id = 'doc-1'", [])
+            .unwrap();
         let (surviving, doc_id): (i64, Option<String>) = conn
             .query_row(
                 "SELECT COUNT(*), MAX(document_id) FROM chat_turns WHERE id = 'turn-1'",
@@ -1577,7 +1591,10 @@ mod tests {
             )
             .unwrap();
         assert_eq!(surviving, 1, "chat turn must survive document deletion");
-        assert_eq!(doc_id, None, "document_id should be nulled, not cascade-deleted");
+        assert_eq!(
+            doc_id, None,
+            "document_id should be nulled, not cascade-deleted"
+        );
 
         // Idempotent: a second run is a no-op.
         migrate_chat_turns_document_id_set_null(&conn).expect("idempotent");
@@ -1703,16 +1720,22 @@ mod tests {
             )
             .expect("match")
         };
-        assert_eq!(hits(&conn, "知识库"), 0, "the old index cannot find a mid-run term");
+        assert_eq!(
+            hits(&conn, "知识库"),
+            0,
+            "the old index cannot find a mid-run term"
+        );
 
         migrate_fts_cjk_segmentation(&conn).expect("migrate");
         assert_eq!(hits(&conn, "知识库"), 1, "after the rebuild it must match");
 
         // The source row is untouched — quotes shown to the user keep their spacing.
         let source: String = conn
-            .query_row("SELECT text FROM document_chunks WHERE id = 'c1'", [], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT text FROM document_chunks WHERE id = 'c1'",
+                [],
+                |r| r.get(0),
+            )
             .expect("source");
         assert_eq!(source, "企业知识库升级建设方案");
 

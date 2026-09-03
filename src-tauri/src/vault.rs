@@ -84,7 +84,10 @@ pub(crate) fn file_stem_for_title(title: &str, document_id: &str) -> String {
 fn note_file_contents(document_id: &str, title: &str, body_md: &str) -> String {
     let safe_title = title.replace('\n', " ");
     let body = body_md.strip_prefix('\n').unwrap_or(body_md);
-    format!("---\nid: {document_id}\ntitle: \"{}\"\n---\n\n{body}", safe_title.replace('"', "'"))
+    format!(
+        "---\nid: {document_id}\ntitle: \"{}\"\n---\n\n{body}",
+        safe_title.replace('"', "'")
+    )
 }
 
 /// Split stored front matter back off a file, returning `(id, body)`.
@@ -227,7 +230,10 @@ mod tests {
 
     #[test]
     fn file_stem_sanitizes_and_falls_back_to_the_id() {
-        assert_eq!(file_stem_for_title("Weekly notes", "note-1"), "Weekly notes");
+        assert_eq!(
+            file_stem_for_title("Weekly notes", "note-1"),
+            "Weekly notes"
+        );
         // Path separators and Windows-illegal characters cannot reach the name.
         assert_eq!(file_stem_for_title("a/b:c?d", "note-1"), "a-b-c-d");
         assert_eq!(file_stem_for_title("   ", "note-1"), "note-1");

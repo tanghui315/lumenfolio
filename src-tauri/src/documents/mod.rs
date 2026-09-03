@@ -316,7 +316,8 @@ pub(crate) fn collect_pdfs(
             .and_then(|extension| extension.to_str())
             .map(|extension| extension.to_ascii_lowercase())
             .is_some_and(|extension| {
-                extension == "pdf" || crate::office::office_content_type_for_ext(&extension).is_some()
+                extension == "pdf"
+                    || crate::office::office_content_type_for_ext(&extension).is_some()
             });
         if !supported {
             continue;

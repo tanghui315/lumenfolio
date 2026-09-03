@@ -20,10 +20,6 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
-  selectedCollectionId: {
-    type: [String, null],
-    default: null,
-  },
   selectedDocId: {
     type: String,
     required: true,
@@ -291,7 +287,7 @@ function onRowClick(row) {
 }
 
 function onCollectionNameClick(collection) {
-  emit('select-collection', collection.id)
+  toggleCollectionExpanded(collection.id)
 }
 
 // Whether `candidateId` is `ancestorId` itself or inside its subtree — used to
@@ -521,6 +517,12 @@ function docStatusKind(doc) {
   if (status === 'indexed') return 'ready'
   if (status === 'stale') return 'failed'
   return 'processing'
+}
+
+function showDocStatusDot(doc) {
+  // Healthy sources are the default — a green LED on every row steals attention
+  // from the title. Keep a mark only when something actually needs it.
+  return docStatusKind(doc) === 'failed'
 }
 
 function docStatusTitle(doc) {
@@ -957,7 +959,7 @@ onBeforeUnmount(() => {
         >
           <span class="rail-doc-icon" aria-hidden="true"></span>
           <span class="rail-doc-name">{{ compactDocLabel(doc) }}</span>
-          <span class="rail-doc-status" :title="docStatusTitle(doc)">
+          <span v-if="showDocStatusDot(doc)" class="rail-doc-status" :title="docStatusTitle(doc)">
             <span class="doc-status-dot" :class="docStatusKind(doc)"></span>
           </span>
           <span v-if="doc.indexStatus === 'indexing'" class="rail-doc-progress" aria-hidden="true">
@@ -1090,7 +1092,6 @@ onBeforeUnmount(() => {
             v-if="row.type === 'collection'"
             class="collection-row"
             :class="{
-              active: row.collection.id === selectedCollectionId,
               'drag-over': (dropHint.key === `col-${row.collection.id}` && dropHint.mode === 'into') || dropTargetCollectionId === row.collection.id,
               'drop-before': dropHint.key === `col-${row.collection.id}` && dropHint.mode === 'before',
               'drop-after': dropHint.key === `col-${row.collection.id}` && dropHint.mode === 'after',
@@ -1199,6 +1200,7 @@ onBeforeUnmount(() => {
             <div class="doc-main">
               <span class="doc-name-wrap">
                 <span
+                  v-if="showDocStatusDot(row.doc)"
                   class="doc-status-dot"
                   :class="docStatusKind(row.doc)"
                   :title="docStatusTitle(row.doc)"
@@ -1305,7 +1307,7 @@ onBeforeUnmount(() => {
   border-right: 1px solid var(--line);
   display: flex;
   flex-direction: column;
-  padding: 0 14px 16px;
+  padding: 0 12px 14px 0;
   gap: 14px;
   transition: width var(--dur-slow) var(--ease), min-width var(--dur-slow) var(--ease), padding var(--dur-slow) var(--ease);
 }
@@ -1315,28 +1317,29 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 10px;
+  gap: 4px;
 }
 
 .sidebar-rail-strip {
   flex: 0 0 auto;
-  width: 34px;
+  width: 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding-top: 6px;
+  gap: 2px;
+  padding: 4px 0 0 4px;
+  box-sizing: border-box;
 }
 
 .rail-mode {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--r-md);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
   border: 1px solid transparent;
   background: transparent;
   color: var(--ink-2);
   cursor: pointer;
-  font-size: 15px;
+  font-size: 17px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1353,9 +1356,8 @@ onBeforeUnmount(() => {
   color: var(--accent);
 }
 
-/* Rail icons are 1em stroke SVGs so they inherit each rail's font-size (32px
-   strip vs 40px collapsed vs 38px action button) and currentColor state. Render
-   them as blocks so there's no inline-baseline gap under the glyph. */
+/* Rail icons are 1em stroke SVGs so they inherit each rail's font-size
+   (narrow expanded strip vs larger collapsed buttons). */
 .rail-mode svg,
 .rail-btn svg {
   display: block;
@@ -1415,6 +1417,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding-left: 6px;
 }
 
 .sidebar.drag-active {
@@ -2095,12 +2098,6 @@ onBeforeUnmount(() => {
   background: var(--surface-wash);
 }
 
-.collection-row.active {
-  background: var(--accent-tint);
-  border-color: var(--accent-line);
-  color: var(--ink);
-}
-
 /* C-d: highlight a collection as a drop target (doc move / nest / OS file). */
 .collection-row.drag-over {
   background: var(--accent-tint);
@@ -2147,14 +2144,14 @@ onBeforeUnmount(() => {
   text-align: left;
 }
 
-/* Folder rows read as headings (600), documents as leaves (below) — same size,
-   so the tree has one type scale instead of children larger than their parent. */
+  /* Folder rows read as headings (600), documents as leaves (below) — same size,
+     so the tree has one type scale instead of children larger than their parent. */
 .collection-name {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: var(--w-strong);
 }
 
@@ -2245,8 +2242,10 @@ onBeforeUnmount(() => {
   gap: 5px;
   /* A document is a leaf of the collection tree, not a floating card: match the
      collection-row rhythm (tight padding, no inter-row margin, small radius) so
-     parent folders and their documents share one vertical cadence. */
-  padding: 5px 8px;
+     parent folders and their documents share one vertical cadence.
+     Left padding = collection-row's 2px + 16px caret + 4px gap, so root-level
+     files line up with folder titles instead of hanging out past the caret. */
+  padding: 4px 8px 4px 22px;
   border-radius: var(--r-sm);
   margin-bottom: 0;
   border: 1px solid transparent;
@@ -2285,44 +2284,21 @@ onBeforeUnmount(() => {
 .doc-status-dot {
   flex-shrink: 0;
   align-self: center;
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: var(--r-pill);
   background: var(--ink-3);
 }
 
-.doc-status-dot.ready {
-  background: var(--success);
-  box-shadow: 0 0 0 2px var(--success-tint);
-}
-
 .doc-status-dot.failed {
   background: var(--danger);
-  box-shadow: 0 0 0 2px var(--danger-tint);
-}
-
-.doc-status-dot.processing {
-  background: var(--warning);
-  animation: doc-status-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes doc-status-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 var(--warning-line);
-    opacity: 1;
-  }
-  50% {
-    box-shadow: 0 0 0 4px transparent;
-    opacity: 0.55;
-  }
 }
 
 .doc-name {
   flex: 1;
   min-width: 0;
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--fs-body);
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2332,7 +2308,7 @@ onBeforeUnmount(() => {
 .doc-time {
   flex-shrink: 0;
   color: var(--ink-3);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   white-space: nowrap;
 }
 

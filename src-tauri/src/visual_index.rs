@@ -391,9 +391,11 @@ fn ocr_text_for_crop(crop_path: &str) -> String {
     if path.is_empty() {
         return String::new();
     }
-    let image = match image::ImageReader::open(path).and_then(|reader| reader.decode().map_err(
-        |err| std::io::Error::new(std::io::ErrorKind::InvalidData, err),
-    )) {
+    let image = match image::ImageReader::open(path).and_then(|reader| {
+        reader
+            .decode()
+            .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
+    }) {
         Ok(image) => image.to_rgba8(),
         Err(err) => {
             log::warn!("OCR skipped for crop {path}: {err}");

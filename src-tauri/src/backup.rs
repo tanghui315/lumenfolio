@@ -83,8 +83,12 @@ fn parse_snapshot_time(name: &str) -> Option<i64> {
 /// first — otherwise a second backup within the same second would fail.
 pub(crate) fn write_snapshot(conn: &Connection, dest: &Path) -> Result<u64, String> {
     if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|err| format!("Failed to create backup directory {}: {err}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|err| {
+            format!(
+                "Failed to create backup directory {}: {err}",
+                parent.display()
+            )
+        })?;
     }
     if dest.exists() {
         std::fs::remove_file(dest)
@@ -148,19 +152,24 @@ fn restore_marker(db_path: &Path) -> PathBuf {
 /// connections (the index writer) may hold it. Validity is checked here rather
 /// than at startup so the user learns immediately if they picked a bad file.
 pub(crate) fn stage_restore(snapshot: &Path, db_path: &Path) -> Result<(), String> {
-    let probe = Connection::open(snapshot)
-        .map_err(|err| format!("Cannot open that snapshot: {err}"))?;
+    let probe =
+        Connection::open(snapshot).map_err(|err| format!("Cannot open that snapshot: {err}"))?;
     let ok: String = probe
         .query_row("PRAGMA integrity_check", [], |row| row.get(0))
         .map_err(|err| format!("Cannot verify that snapshot: {err}"))?;
     if ok != "ok" {
-        return Err(format!("That snapshot is damaged ({ok}) and was not staged."));
+        return Err(format!(
+            "That snapshot is damaged ({ok}) and was not staged."
+        ));
     }
     let documents: i64 = probe
         .query_row("SELECT COUNT(*) FROM documents", [], |row| row.get(0))
         .map_err(|_| "That file is not a Lumenfolio database.".to_string())?;
     drop(probe);
-    log::info!("Staging restore of {} ({documents} documents)", snapshot.display());
+    log::info!(
+        "Staging restore of {} ({documents} documents)",
+        snapshot.display()
+    );
     std::fs::copy(snapshot, restore_marker(db_path))
         .map_err(|err| format!("Failed to stage the restore: {err}"))?;
     Ok(())
@@ -258,7 +267,10 @@ mod tests {
             .unwrap();
         let name = format!("lumenfolio-{}.sqlite", early.format("%Y%m%d-%H%M%S"));
         assert_eq!(name, "lumenfolio-20260731-090503.sqlite");
-        assert_eq!(parse_snapshot_time(&name), Some(early.and_utc().timestamp()));
+        assert_eq!(
+            parse_snapshot_time(&name),
+            Some(early.and_utc().timestamp())
+        );
         // Text order matches time order, which is what listing relies on.
         assert!("lumenfolio-20260731-090503.sqlite" < "lumenfolio-20260731-143022.sqlite");
         assert_eq!(parse_snapshot_time("notes.md"), None);

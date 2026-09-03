@@ -100,7 +100,10 @@ pub(crate) async fn run_simple_completion(
         .timeout(Duration::from_secs(timeout_secs))
         .build()
         .map_err(|err| format!("Failed to create completion client: {err}"))?;
-    let endpoint = format!("{}/chat/completions", normalize_base_url(&provider.base_url));
+    let endpoint = format!(
+        "{}/chat/completions",
+        normalize_base_url(&provider.base_url)
+    );
     let request = OpenAiChatRequest {
         model: provider.model.clone(),
         temperature,
@@ -390,7 +393,10 @@ pub(crate) async fn generate_session_title_with_openai_compatible(
 /// a leading "Title:" label, and trailing punctuation/whitespace. Collapses to
 /// a single line.
 fn clean_session_title(raw: &str) -> String {
-    let first_line = raw.lines().find(|line| !line.trim().is_empty()).unwrap_or("");
+    let first_line = raw
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or("");
     let mut title = first_line.trim().to_string();
     for prefix in ["Title:", "title:", "标题:", "标题:"] {
         if let Some(stripped) = title.strip_prefix(prefix) {
@@ -399,7 +405,11 @@ fn clean_session_title(raw: &str) -> String {
     }
     let trimmed = title
         .trim_matches(|c: char| {
-            c.is_whitespace() || matches!(c, '"' | '\'' | '“' | '”' | '‘' | '’' | '「' | '」' | '。' | '.')
+            c.is_whitespace()
+                || matches!(
+                    c,
+                    '"' | '\'' | '“' | '”' | '‘' | '’' | '「' | '」' | '。' | '.'
+                )
         })
         .to_string();
     trimmed

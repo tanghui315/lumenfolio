@@ -269,11 +269,7 @@ pub(crate) async fn add_trending_paper(
         .unwrap_or_else(|| dir.join(trending_file_name(&arxiv_id, title.as_deref())));
 
     if !file_path.exists() {
-        download_pdf(
-            &format!("https://arxiv.org/pdf/{arxiv_id}.pdf"),
-            &file_path,
-        )
-        .await?;
+        download_pdf(&format!("https://arxiv.org/pdf/{arxiv_id}.pdf"), &file_path).await?;
     }
 
     // Register just this paper additively — never a full-folder reconcile, which
@@ -375,11 +371,13 @@ async fn download_pdf(url: &str, dest: &Path) -> Result<(), String> {
         .await
         .map_err(|err| format!("Failed to read the downloaded PDF: {err}"))?;
     if !bytes.starts_with(b"%PDF") {
-        return Err("The downloaded file is not a valid PDF (the paper may not be on arXiv yet).".to_string());
+        return Err(
+            "The downloaded file is not a valid PDF (the paper may not be on arXiv yet)."
+                .to_string(),
+        );
     }
-    fs::write(dest, &bytes).map_err(|err| {
-        format!("Failed to save the PDF to {}: {err}", dest.display())
-    })?;
+    fs::write(dest, &bytes)
+        .map_err(|err| format!("Failed to save the PDF to {}: {err}", dest.display()))?;
     Ok(())
 }
 
@@ -427,16 +425,28 @@ mod tests {
 
     #[test]
     fn trending_query_maps_period_and_sanitises_value() {
-        assert_eq!(trending_query(Some("daily"), Some("2026-06-10")), "date=2026-06-10");
-        assert_eq!(trending_query(Some("weekly"), Some("2026-W24")), "week=2026-W24");
-        assert_eq!(trending_query(Some("monthly"), Some("2026-06")), "month=2026-06");
+        assert_eq!(
+            trending_query(Some("daily"), Some("2026-06-10")),
+            "date=2026-06-10"
+        );
+        assert_eq!(
+            trending_query(Some("weekly"), Some("2026-W24")),
+            "week=2026-W24"
+        );
+        assert_eq!(
+            trending_query(Some("monthly"), Some("2026-06")),
+            "month=2026-06"
+        );
         // No sort=trending on the scoped queries (it would override the scope).
         assert!(!trending_query(Some("weekly"), Some("2026-W24")).contains("sort"));
         // Missing value or unrecognised period → latest global trending.
         assert_eq!(trending_query(None, None), "sort=trending");
         assert_eq!(trending_query(Some("weekly"), None), "sort=trending");
         // A value with unexpected characters is rejected (no query injection).
-        assert_eq!(trending_query(Some("weekly"), Some("2026-W24&x=1")), "sort=trending");
+        assert_eq!(
+            trending_query(Some("weekly"), Some("2026-W24&x=1")),
+            "sort=trending"
+        );
     }
 
     #[test]
@@ -450,10 +460,14 @@ mod tests {
             }
         }"#;
         let item: HfDailyPaperItem = serde_json::from_str(json).unwrap();
-        assert_eq!(map_item(item).thumbnail_url.as_deref(), Some("https://x/fig.jpg"));
+        assert_eq!(
+            map_item(item).thumbnail_url.as_deref(),
+            Some("https://x/fig.jpg")
+        );
 
         // No thumbnail and only a video → no thumbnail (don't put a video in <img>).
-        let json = r#"{ "paper": { "id": "2", "title": "T", "mediaUrls": ["https://x/clip.mp4"] } }"#;
+        let json =
+            r#"{ "paper": { "id": "2", "title": "T", "mediaUrls": ["https://x/clip.mp4"] } }"#;
         let item: HfDailyPaperItem = serde_json::from_str(json).unwrap();
         assert_eq!(map_item(item).thumbnail_url, None);
     }
@@ -465,6 +479,9 @@ mod tests {
             "2606.05515 Deep Research Models.pdf"
         );
         assert_eq!(trending_file_name("2606.05515", None), "2606.05515.pdf");
-        assert_eq!(trending_file_name("2606.05515", Some("   ")), "2606.05515.pdf");
+        assert_eq!(
+            trending_file_name("2606.05515", Some("   ")),
+            "2606.05515.pdf"
+        );
     }
 }
